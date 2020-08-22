@@ -100,7 +100,7 @@ void main() {
 		vec3 lightVertexB = vec3(vertexBuffer.data[3 * lightIndices.y + 0], vertexBuffer.data[3 * lightIndices.y + 1], vertexBuffer.data[3 * lightIndices.y + 2]);
 		vec3 lightVertexC = vec3(vertexBuffer.data[3 * lightIndices.z + 0], vertexBuffer.data[3 * lightIndices.z + 1], vertexBuffer.data[3 * lightIndices.z + 2]);
 
-		vec2 uv = vec2(halton(int(payload.pixel.x + camera.frameCount), 2), halton(int(payload.pixel.y + camera.frameCount), 3));
+		vec2 uv = vec2(halton(int(payload.pixel.x + camera.frameCount), 2 + payload.rayDepth * 4 + 0), halton(int(payload.pixel.y + camera.frameCount), 2 + payload.rayDepth * 4 + 1));
 		if (uv.x + uv.y > 1.0f) {
 			uv.x = 1.0f - uv.x;
 			uv.y = 1.0f - uv.y;
@@ -136,7 +136,7 @@ void main() {
 		payload.rayDepth += 1;
 	}
 
-	vec3 sampleDirection = sampleCosineWeightedHemisphere(halton(int(payload.pixel.x + camera.frameCount), 2), halton(int(payload.pixel.y + camera.frameCount), 3));
+	vec3 sampleDirection = sampleCosineWeightedHemisphere(halton(int(payload.pixel.x + camera.frameCount), 2 + payload.rayDepth * 4 + 0), halton(int(payload.pixel.y + camera.frameCount), 2 + payload.rayDepth * 4 + 1));
 	sampleDirection = alignHemisphereWithNormal(sampleDirection, geometricNormal);
 
 	payload.rayOrigin = position + geometricNormal * 0.001f;
