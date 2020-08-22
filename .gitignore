@@ -4,8 +4,8 @@
 # Object files
 *.o
 *.ko
-*.obj
 *.elf
+*.spv
 
 # Linker output
 *.ilk
