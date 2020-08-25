@@ -18,8 +18,6 @@ layout(location = 0) rayPayloadInEXT Payload {
   vec3 rayDirection;
   vec3 accumulatedColor;
   int rayDepth;
-
-  vec2 pixel;
 } payload;
 
 layout(location = 1) rayPayloadEXT bool isShadow;
@@ -87,7 +85,7 @@ void main() {
 		vec3 lightVertexB = vec3(vertexBuffer.data[3 * lightIndices.y + 0], vertexBuffer.data[3 * lightIndices.y + 1], vertexBuffer.data[3 * lightIndices.y + 2]);
 		vec3 lightVertexC = vec3(vertexBuffer.data[3 * lightIndices.z + 0], vertexBuffer.data[3 * lightIndices.z + 1], vertexBuffer.data[3 * lightIndices.z + 2]);
 
-		vec2 uv = vec2(random(payload.pixel.x + camera.frameCount, 2 + payload.rayDepth * 4 + 0), random(payload.pixel.y + camera.frameCount, 2 + payload.rayDepth * 4 + 1));
+		vec2 uv = vec2(random(gl_LaunchIDEXT.x, camera.frameCount), random(gl_LaunchIDEXT.y, camera.frameCount));
 		if (uv.x + uv.y > 1.0f) {
 			uv.x = 1.0f - uv.x;
 			uv.y = 1.0f - uv.y;
@@ -123,7 +121,7 @@ void main() {
 		payload.rayDepth += 1;
 	}
 
-	vec3 sampleDirection = sampleCosineWeightedHemisphere(random(payload.pixel.x + camera.frameCount, 2 + payload.rayDepth * 4 + 0), random(payload.pixel.y + camera.frameCount, 2 + payload.rayDepth * 4 + 1));
+	vec3 sampleDirection = sampleCosineWeightedHemisphere(random(gl_LaunchIDEXT.x, camera.frameCount), random(gl_LaunchIDEXT.y, camera.frameCount));
 	sampleDirection = alignHemisphereWithNormal(sampleDirection, geometricNormal);
 
 	payload.rayOrigin = position + geometricNormal * 0.001f;

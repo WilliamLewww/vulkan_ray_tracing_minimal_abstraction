@@ -6,8 +6,6 @@ layout(location = 0) rayPayloadEXT Payload {
   vec3 rayDirection;
   vec3 accumulatedColor;
   int rayDepth;
-
-  vec2 pixel;
 } payload;
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
@@ -35,8 +33,6 @@ void main() {
 
   payload.accumulatedColor = vec3(1.0, 1.0, 1.0);
   payload.rayDepth = 0;
-
-  payload.pixel = gl_LaunchIDEXT.xy;
 
   for (int x = 0; x < 16; x++) {
     traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, payload.rayOrigin, 0.001, payload.rayDirection, 10000.0, 0);
