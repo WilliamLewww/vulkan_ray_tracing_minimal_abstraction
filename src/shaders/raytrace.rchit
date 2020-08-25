@@ -44,19 +44,6 @@ float random(float u, float v) {
   return fract(sin(dot(vec2(u, v), vec2(12.9898, 78.233))) * 43758.5453);
 }
 
-float halton(int i, int b) {
-	float f = 1.0f;
-	float r = 0.0f;
-
-	while (i > 0) {
-		f = f / b;
-		r = r + f * (i % b);
-		i = i / b;
-	}
-
-	return r;
-}
-
 vec3 sampleCosineWeightedHemisphere(float u, float v) {
 	float phi = 2.0f * M_PI * u;
 
@@ -100,7 +87,7 @@ void main() {
 		vec3 lightVertexB = vec3(vertexBuffer.data[3 * lightIndices.y + 0], vertexBuffer.data[3 * lightIndices.y + 1], vertexBuffer.data[3 * lightIndices.y + 2]);
 		vec3 lightVertexC = vec3(vertexBuffer.data[3 * lightIndices.z + 0], vertexBuffer.data[3 * lightIndices.z + 1], vertexBuffer.data[3 * lightIndices.z + 2]);
 
-		vec2 uv = vec2(halton(int(payload.pixel.x + camera.frameCount), 2 + payload.rayDepth * 4 + 0), halton(int(payload.pixel.y + camera.frameCount), 2 + payload.rayDepth * 4 + 1));
+		vec2 uv = vec2(random(payload.pixel.x + camera.frameCount, 2 + payload.rayDepth * 4 + 0), random(payload.pixel.y + camera.frameCount, 2 + payload.rayDepth * 4 + 1));
 		if (uv.x + uv.y > 1.0f) {
 			uv.x = 1.0f - uv.x;
 			uv.y = 1.0f - uv.y;
@@ -136,7 +123,7 @@ void main() {
 		payload.rayDepth += 1;
 	}
 
-	vec3 sampleDirection = sampleCosineWeightedHemisphere(halton(int(payload.pixel.x + camera.frameCount), 2 + payload.rayDepth * 4 + 0), halton(int(payload.pixel.y + camera.frameCount), 2 + payload.rayDepth * 4 + 1));
+	vec3 sampleDirection = sampleCosineWeightedHemisphere(random(payload.pixel.x + camera.frameCount, 2 + payload.rayDepth * 4 + 0), random(payload.pixel.y + camera.frameCount, 2 + payload.rayDepth * 4 + 1));
 	sampleDirection = alignHemisphereWithNormal(sampleDirection, geometricNormal);
 
 	payload.rayOrigin = position + geometricNormal * 0.001f;
