@@ -1515,7 +1515,7 @@ void createRayTracePipeline(struct VulkanApplication* app, struct RayTraceApplic
   rayPipelineCreateInfo.pStages = shaderStages;
   rayPipelineCreateInfo.groupCount = 4;
   rayPipelineCreateInfo.pGroups = shaderGroupCreateInfos;
-  rayPipelineCreateInfo.maxRecursionDepth = 25;
+  rayPipelineCreateInfo.maxRecursionDepth = 16;
   rayPipelineCreateInfo.libraries = pipelineLibraryCreateInfo;
   rayPipelineCreateInfo.pLibraryInterface = NULL;
   rayPipelineCreateInfo.layout = rayTraceApp->rayTracePipelineLayout;

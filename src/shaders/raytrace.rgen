@@ -4,7 +4,9 @@
 layout(location = 0) rayPayloadEXT Payload {
   vec3 rayOrigin;
   vec3 rayDirection;
-  vec3 accumulatedColor;
+
+  vec3 directColor;
+  vec3 indirectColor;
   int rayDepth;
 } payload;
 
@@ -31,14 +33,15 @@ void main() {
   payload.rayOrigin = camera.position.xyz;
   payload.rayDirection = normalize(uv.x * camera.right + uv.y * camera.up + camera.forward).xyz;
 
-  payload.accumulatedColor = vec3(1.0, 1.0, 1.0);
+  payload.directColor = vec3(0.0, 0.0, 0.0);
+  payload.indirectColor = vec3(0.0, 0.0, 0.0);
   payload.rayDepth = 0;
 
-  for (int x = 0; x < 16; x++) {
+  for (int x = 0; x < 3; x++) {
     traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, payload.rayOrigin, 0.001, payload.rayDirection, 10000.0, 0);
   }
 
-  vec4 color = vec4(payload.accumulatedColor, 1.0);
+  vec4 color = vec4(payload.directColor + (payload.indirectColor / 3), 1.0);
 
   if (camera.frameCount > 0) {
     vec4 previousColor = imageLoad(image, ivec2(gl_LaunchIDEXT.xy));

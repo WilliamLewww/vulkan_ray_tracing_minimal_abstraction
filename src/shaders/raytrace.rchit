@@ -16,7 +16,9 @@ hitAttributeEXT vec2 hitCoordinate;
 layout(location = 0) rayPayloadInEXT Payload {
   vec3 rayOrigin;
   vec3 rayDirection;
-  vec3 accumulatedColor;
+
+  vec3 directColor;
+  vec3 indirectColor;
   int rayDepth;
 } payload;
 
@@ -104,17 +106,12 @@ void main() {
 		isShadow = true;
 		traceRayEXT(topLevelAS, shadowRayFlags, 0xFF, 0, 0, 1, shadowRayOrigin, 0.001, shadowRayDirection, shadowRayDistance, 1);
 
-		if (isShadow) {
+		if (!isShadow) {
 			if (payload.rayDepth == 0) {
-				payload.accumulatedColor = vec3(0.0, 0.0, 0.0);
-			}
-		}
-		else {
-			if (payload.rayDepth == 0) {
-				payload.accumulatedColor *= vec3(surfaceColor * lightColor * dot(geometricNormal, positionToLightDirection));
+				payload.directColor = vec3(surfaceColor * lightColor * dot(geometricNormal, positionToLightDirection));
 			}
 			else {
-				payload.accumulatedColor += (1.0 / payload.rayDepth) * vec3(surfaceColor * lightColor * dot(geometricNormal, positionToLightDirection));
+				payload.indirectColor += vec3(surfaceColor * lightColor * dot(geometricNormal, positionToLightDirection));
 			}
 		}
 
