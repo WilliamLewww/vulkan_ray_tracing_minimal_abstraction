@@ -1,0 +1,55 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+
+layout(location = 0) rayPayloadEXT Payload {
+  vec3 rayOrigin;
+  vec3 rayDirection;
+
+  vec3 directColor;
+  vec3 indirectColor;
+  int rayDepth;
+} payload;
+
+layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
+layout(binding = 1, set = 0, rgba32f) uniform image2D image;
+layout(binding = 2, set = 0) uniform Camera {
+  vec4 position;
+  vec4 right;
+  vec4 up;
+  vec4 forward;
+
+  uint frameCount;
+} camera;
+
+float random(float u, float v) {
+  return fract(sin(dot(vec2(u, v), vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+void main() {
+  vec2 uv = gl_LaunchIDEXT.xy + vec2(random(int(camera.frameCount), 0), random(int(camera.frameCount), 1));
+  uv /= vec2(gl_LaunchSizeEXT.xy);
+  uv = (uv * 2.0f - 1.0f) * vec2(1.0f, -1.0f);
+
+  payload.rayOrigin = camera.position.xyz;
+  payload.rayDirection = normalize(uv.x * camera.right + uv.y * camera.up + camera.forward).xyz;
+
+  payload.directColor = vec3(0.0, 0.0, 0.0);
+  payload.indirectColor = vec3(0.0, 0.0, 0.0);
+  payload.rayDepth = 0;
+
+  for (int x = 0; x < 3; x++) {
+    traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, payload.rayOrigin, 0.001, payload.rayDirection, 10000.0, 0);
+  }
+
+  vec4 color = vec4(payload.directColor + (payload.indirectColor / 3), 1.0);
+
+  if (camera.frameCount > 0) {
+    vec4 previousColor = imageLoad(image, ivec2(gl_LaunchIDEXT.xy));
+    previousColor *= camera.frameCount;
+
+    color += previousColor;
+    color /= (camera.frameCount + 1);
+  }
+  
+  imageStore(image, ivec2(gl_LaunchIDEXT.xy), color);
+}
