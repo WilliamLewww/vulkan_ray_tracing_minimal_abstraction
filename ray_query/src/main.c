@@ -1121,7 +1121,7 @@ void buildAccelerationStructure(struct VulkanApplication* app, struct RayTraceAp
   trianglesData.pNext = NULL;
   trianglesData.vertexFormat = VK_FORMAT_R32G32_SFLOAT;
   trianglesData.vertexData = vertexDeviceOrHostAddressConst;
-  trianglesData.vertexStride = sizeof(float) * 3;
+  trianglesData.vertexStride = sizeof(float) * 2;
   trianglesData.indexType = VK_INDEX_TYPE_UINT32;
   trianglesData.indexData = indexDeviceOrHostAddressConst;
   trianglesData.transformData = (VkDeviceOrHostAddressConstKHR){}; 
