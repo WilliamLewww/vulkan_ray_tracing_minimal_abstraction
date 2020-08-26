@@ -1,1 +1,1 @@
-# vulkan_ray_tracing_minimal_abstraction
+# Vulkan Ray Tracing Minimal Abstraction
