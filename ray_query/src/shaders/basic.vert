@@ -1,7 +1,9 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
+#extension GL_EXT_ray_tracing : enable
+#extension GL_EXT_ray_query : enable
 
-layout(binding = 0) uniform Camera {
+layout(binding = 1) uniform Camera {
   vec4 position;
   vec4 right;
   vec4 up;
