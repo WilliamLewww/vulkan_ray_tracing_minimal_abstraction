@@ -9,9 +9,25 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
 
-#define MAX_FRAMES_IN_FLIGHT      2
+#define MAX_FRAMES_IN_FLIGHT      1
 #define ENABLE_VALIDATION         1
+
+static char keyDownIndex[500];
+
+static float cameraPosition[3];
+static float cameraYaw;
+static float cameraPitch;
+
+struct Camera {
+  float position[4];
+  float right[4];
+  float up[4];
+  float forward[4];
+
+  uint32_t frameCount;
+};
 
 struct Scene {
   tinyobj_attrib_t attributes;
@@ -64,8 +80,8 @@ struct VulkanApplication {
   VkDescriptorPool descriptorPool;
   VkDescriptorSet* descriptorSets;
 
-  VkBuffer* uniformBuffers;
-  VkDeviceMemory* uniformBuffersMemory;
+  VkBuffer uniformBuffer;
+  VkDeviceMemory uniformBufferMemory;
 
   VkVertexInputBindingDescription* vertexBindingDescriptions;
   VkVertexInputAttributeDescription* vertexAttributeDescriptions;  
@@ -90,10 +106,6 @@ struct RayTraceApplication {
   VkAccelerationStructureKHR topLevelAccelerationStructure;
   VkBuffer topLevelAccelerationStructureBuffer;
   VkDeviceMemory topLevelAccelerationStructureBufferMemory;
-};
-
-struct UniformBufferObject {
-  float uniformTest;
 };
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {
@@ -774,14 +786,8 @@ void createIndexBuffer(struct VulkanApplication* app, struct Scene* scene) {
 }
 
 void createUniformBuffers(struct VulkanApplication* app) {
-  VkDeviceSize bufferSize = sizeof(struct UniformBufferObject);
-
-  app->uniformBuffers = (VkBuffer*)malloc(sizeof(VkBuffer) * app->imageCount);
-  app->uniformBuffersMemory = (VkDeviceMemory*)malloc(sizeof(VkDeviceMemory) * app->imageCount);
-
-  for (int x = 0; x < app->imageCount; x++) {
-    createBuffer(app, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &app->uniformBuffers[x], &app->uniformBuffersMemory[x]);
-  }
+  VkDeviceSize bufferSize = sizeof(struct Camera);
+  createBuffer(app, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &app->uniformBuffer, &app->uniformBufferMemory);
 }
 
 void createDescriptorPool(struct VulkanApplication* app) {
@@ -819,9 +825,9 @@ void createDescriptorSets(struct VulkanApplication* app) {
 
   for (int x = 0; x < app->imageCount; x++) {
     VkDescriptorBufferInfo descriptorBufferInfo = {};
-    descriptorBufferInfo.buffer = app->uniformBuffers[x];
+    descriptorBufferInfo.buffer = app->uniformBuffer;
     descriptorBufferInfo.offset = 0;
-    descriptorBufferInfo.range = sizeof(struct UniformBufferObject);
+    descriptorBufferInfo.range = sizeof(struct Camera);
 
     VkWriteDescriptorSet writeDescriptorSet = {};
     writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -912,17 +918,14 @@ void createSynchronizationObjects(struct VulkanApplication* app) {
   }
 }
 
-void updateUniformBuffer(struct VulkanApplication* app, uint32_t currentImage) {
-  struct UniformBufferObject ubo = {};
-  ubo.uniformTest = 1.0f;
-
+void updateUniformBuffer(struct VulkanApplication* app, struct Camera* camera) {
   void* data;
-  vkMapMemory(app->logicalDevice, app->uniformBuffersMemory[currentImage], 0, sizeof(struct UniformBufferObject), 0, &data);
-  memcpy(data, &ubo, sizeof(struct UniformBufferObject));
-  vkUnmapMemory(app->logicalDevice, app->uniformBuffersMemory[currentImage]);
+  vkMapMemory(app->logicalDevice, app->uniformBufferMemory, 0, sizeof(struct Camera), 0, &data);
+  memcpy(data, camera, sizeof(struct Camera));
+  vkUnmapMemory(app->logicalDevice, app->uniformBufferMemory);
 }
 
-void drawFrame(struct VulkanApplication* app) {
+void drawFrame(struct VulkanApplication* app, struct Camera* camera) {
   vkWaitForFences(app->logicalDevice, 1, &app->inFlightFences[app->currentFrame], VK_TRUE, UINT64_MAX);
     
   uint32_t imageIndex;
@@ -933,7 +936,7 @@ void drawFrame(struct VulkanApplication* app) {
   }
   app->imagesInFlight[imageIndex] = app->inFlightFences[app->currentFrame];
  
-  updateUniformBuffer(app, imageIndex);
+  updateUniformBuffer(app, camera);
    
   VkSubmitInfo submitInfo = {};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -972,11 +975,77 @@ void drawFrame(struct VulkanApplication* app) {
   app->currentFrame = (app->currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-void runMainLoop(struct VulkanApplication* app) {
+void runMainLoop(struct VulkanApplication* app, struct Camera* camera) {
   while (!glfwWindowShouldClose(app->window)) {
     glfwPollEvents();
+
+    int isCameraMoved = 0;
+
+    if (keyDownIndex[GLFW_KEY_W]) {
+      cameraPosition[0] += cos(-cameraYaw - (M_PI / 2)) * 0.1f;
+      cameraPosition[2] += sin(-cameraYaw - (M_PI / 2)) * 0.1f;
+      isCameraMoved = 1;
+    }
+    if (keyDownIndex[GLFW_KEY_S]) {
+      cameraPosition[0] -= cos(-cameraYaw - (M_PI / 2)) * 0.1f;
+      cameraPosition[2] -= sin(-cameraYaw - (M_PI / 2)) * 0.1f;
+      isCameraMoved = 1;
+    }
+    if (keyDownIndex[GLFW_KEY_A]) {
+      cameraPosition[0] -= cos(-cameraYaw) * 0.1f;
+      cameraPosition[2] -= sin(-cameraYaw) * 0.1f;
+      isCameraMoved = 1;
+    }
+    if (keyDownIndex[GLFW_KEY_D]) {
+      cameraPosition[0] += cos(-cameraYaw) * 0.1f;
+      cameraPosition[2] += sin(-cameraYaw) * 0.1f;
+      isCameraMoved = 1;
+    }
+    if (keyDownIndex[GLFW_KEY_SPACE]) {
+      cameraPosition[1] += 0.1f;
+      isCameraMoved = 1;
+    }
+    if (keyDownIndex[GLFW_KEY_LEFT_CONTROL]) {
+      cameraPosition[1] -= 0.1f;
+      isCameraMoved = 1;
+    }
+
+    static double previousMousePositionX;
+    static double previousMousePositionY;
+
+    double xPos, yPos;
+    glfwGetCursorPos(app->window, &xPos, &yPos);
+
+    if (previousMousePositionX != xPos || previousMousePositionY != yPos) {
+      double mouseDifferenceX = previousMousePositionX - xPos;
+      double mouseDifferenceY = previousMousePositionY - yPos;
+
+      cameraYaw += mouseDifferenceX * 0.0005f;
+
+      previousMousePositionX = xPos;
+      previousMousePositionY = yPos;
+
+      isCameraMoved = 1;
+    }
+
+    camera->position[0] = cameraPosition[0]; camera->position[1] = cameraPosition[1]; camera->position[2] = cameraPosition[2];
+
+    camera->forward[0] = cosf(cameraPitch) * cosf(-cameraYaw - (M_PI / 2.0));
+    camera->forward[1] = sinf(cameraPitch);
+    camera->forward[2] = cosf(cameraPitch) * sinf(-cameraYaw - (M_PI / 2.0));
+
+    camera->right[0] = camera->forward[1] * camera->up[2] - camera->forward[2] * camera->up[1];
+    camera->right[1] = camera->forward[2] * camera->up[0] - camera->forward[0] * camera->up[2];
+    camera->right[2] = camera->forward[0] * camera->up[1] - camera->forward[1] * camera->up[0];
+
+    if (isCameraMoved == 1) {
+      camera->frameCount = 0;
+    }
+    else {
+      camera->frameCount += 1;
+    }
     
-    drawFrame(app);
+    drawFrame(app, camera);
   }
 }
 
@@ -1355,6 +1424,23 @@ int main(void) {
   struct RayTraceApplication* rayTraceApp = (struct RayTraceApplication*)malloc(sizeof(struct RayTraceApplication));
   struct Scene* scene = (struct Scene*)malloc(sizeof(struct Scene));
 
+  struct Camera* camera = &(struct Camera) {
+    .position = {
+      0, 0, 0, 1
+    },
+    .right = {
+      1, 0, 0, 1
+    },
+    .up = {
+      0, 1, 0, 1
+    },
+    .forward = {
+      0, 0, 1, 1
+    },
+
+    .frameCount = 0,
+  };
+
   initializeScene(scene, "res/cube_scene.obj");
 
   initializeVulkanContext(app);
@@ -1380,7 +1466,7 @@ int main(void) {
   createCommandBuffers(app);
   createSynchronizationObjects(app);
 
-  runMainLoop(app);
+  runMainLoop(app, camera);
   
   return 0;
 }
