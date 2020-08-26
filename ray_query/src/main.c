@@ -29,13 +29,15 @@ struct Camera {
   uint32_t frameCount;
 };
 
-struct Scene {
-  tinyobj_attrib_t attributes;
-  tinyobj_shape_t* shapes;
-  tinyobj_material_t* materials;
+const float verticesPosition[] = {
+  -0.5f, -0.5f,
+   0.5f, -0.5f,
+   0.5f,  0.5f,
+  -0.5f,  0.5f,
+};
 
-  uint64_t numShapes;
-  uint64_t numMaterials;
+const uint32_t vertexIndices[] = {
+  0, 1, 2, 2, 3, 0
 };
 
 struct VulkanApplication {
@@ -91,9 +93,6 @@ struct VulkanApplication {
   VkBuffer vertexPositionBuffer;
   VkDeviceMemory vertexPositionBufferMemory;
 
-  VkBuffer vertexNormalBuffer;
-  VkDeviceMemory vertexNormalBufferMemory;
-
   VkBuffer indexBuffer;
   VkDeviceMemory indexBufferMemory;
 };
@@ -134,11 +133,6 @@ void readFile(const char* fileName, char** buffer, uint64_t* length) {
   }
 
   *length = readSize;
-}
-
-void initializeScene(struct Scene* scene, const char* fileNameOBJ) {
-  tinyobj_attrib_init(&scene->attributes);
-  tinyobj_parse_obj(&scene->attributes, &scene->shapes, &scene->numShapes, &scene->materials, &scene->numMaterials, fileNameOBJ, readFile, TINYOBJ_FLAG_TRIANGULATE);
 }
 
 void initializeVulkanContext(struct VulkanApplication* app) {
@@ -511,30 +505,21 @@ void createGraphicsPipeline(struct VulkanApplication* app) {
 
   VkPipelineShaderStageCreateInfo shaderStages[2] = {vertexShaderStageInfo, fragmentShaderStageInfo};
 
-  app->vertexBindingDescriptions = (VkVertexInputBindingDescription*)malloc(sizeof(VkVertexInputBindingDescription) * 2);
+  app->vertexBindingDescriptions = (VkVertexInputBindingDescription*)malloc(sizeof(VkVertexInputBindingDescription) * 1);
   app->vertexBindingDescriptions[0].binding = 0;
-  app->vertexBindingDescriptions[0].stride = sizeof(float) * 3;
+  app->vertexBindingDescriptions[0].stride = sizeof(float) * 2;
   app->vertexBindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-  app->vertexBindingDescriptions[1].binding = 1;
-  app->vertexBindingDescriptions[1].stride = sizeof(float) * 3;
-  app->vertexBindingDescriptions[1].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-  app->vertexAttributeDescriptions = (VkVertexInputAttributeDescription*)malloc(sizeof(VkVertexInputAttributeDescription) * 2);
+  app->vertexAttributeDescriptions = (VkVertexInputAttributeDescription*)malloc(sizeof(VkVertexInputAttributeDescription) * 1);
   app->vertexAttributeDescriptions[0].binding = 0;
   app->vertexAttributeDescriptions[0].location = 0;
-  app->vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+  app->vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
   app->vertexAttributeDescriptions[0].offset = 0;
-  
-  app->vertexAttributeDescriptions[1].binding = 1;
-  app->vertexAttributeDescriptions[1].location = 1;
-  app->vertexAttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-  app->vertexAttributeDescriptions[1].offset = 0;
 
   VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
   vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-  vertexInputStateCreateInfo.vertexBindingDescriptionCount = 2;
-  vertexInputStateCreateInfo.vertexAttributeDescriptionCount = 2;
+  vertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
+  vertexInputStateCreateInfo.vertexAttributeDescriptionCount = 1;
   vertexInputStateCreateInfo.pVertexBindingDescriptions = app->vertexBindingDescriptions;
   vertexInputStateCreateInfo.pVertexAttributeDescriptions = app->vertexAttributeDescriptions;
   
@@ -720,8 +705,8 @@ void copyBuffer(struct VulkanApplication* app, VkBuffer srcBuffer, VkBuffer dstB
   vkFreeCommandBuffers(app->logicalDevice, app->commandPool, 1, &commandBuffer);
 }
 
-void createVertexBuffer(struct VulkanApplication* app, struct Scene* scene) {
-  VkDeviceSize positionBufferSize = sizeof(float) * scene->attributes.num_vertices * 3;
+void createVertexBuffer(struct VulkanApplication* app) {
+  VkDeviceSize positionBufferSize = sizeof(float) * 8;
   
   VkBuffer positionStagingBuffer;
   VkDeviceMemory positionStagingBufferMemory;
@@ -729,42 +714,16 @@ void createVertexBuffer(struct VulkanApplication* app, struct Scene* scene) {
 
   void* positionData;
   vkMapMemory(app->logicalDevice, positionStagingBufferMemory, 0, positionBufferSize, 0, &positionData);
-  memcpy(positionData, scene->attributes.vertices, positionBufferSize);
+  memcpy(positionData, verticesPosition, positionBufferSize);
   vkUnmapMemory(app->logicalDevice, positionStagingBufferMemory);
 
-  createBuffer(app, positionBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->vertexPositionBuffer, &app->vertexPositionBufferMemory);  
+  createBuffer(app, positionBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->vertexPositionBuffer, &app->vertexPositionBufferMemory);  
 
   copyBuffer(app, positionStagingBuffer, app->vertexPositionBuffer, positionBufferSize);
-
-  vkDestroyBuffer(app->logicalDevice, positionStagingBuffer, NULL);
-  vkFreeMemory(app->logicalDevice, positionStagingBufferMemory, NULL);
-
-  VkDeviceSize normalBufferSize = sizeof(float) * scene->attributes.num_normals * 3;
-  
-  VkBuffer normalStagingBuffer;
-  VkDeviceMemory normalStagingBufferMemory;
-  createBuffer(app, normalBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &normalStagingBuffer, &normalStagingBufferMemory);
-
-  void* normalData;
-  vkMapMemory(app->logicalDevice, normalStagingBufferMemory, 0, normalBufferSize, 0, &normalData);
-  memcpy(normalData, scene->attributes.normals, normalBufferSize);
-  vkUnmapMemory(app->logicalDevice, normalStagingBufferMemory);
-
-  createBuffer(app, normalBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->vertexNormalBuffer, &app->vertexNormalBufferMemory);  
-
-  copyBuffer(app, normalStagingBuffer, app->vertexNormalBuffer, normalBufferSize);
-
-  vkDestroyBuffer(app->logicalDevice, normalStagingBuffer, NULL);
-  vkFreeMemory(app->logicalDevice, normalStagingBufferMemory, NULL);
 }
 
-void createIndexBuffer(struct VulkanApplication* app, struct Scene* scene) {
-  VkDeviceSize bufferSize = sizeof(uint32_t) * scene->attributes.num_faces;
-
-  uint32_t* positionIndices = (uint32_t*)malloc(bufferSize);
-  for (int x = 0; x < scene->attributes.num_faces; x++) {
-    positionIndices[x] = scene->attributes.faces[x].v_idx;
-  }
+void createIndexBuffer(struct VulkanApplication* app) {
+  VkDeviceSize bufferSize = sizeof(uint32_t) * 6;
   
   VkBuffer stagingBuffer;
   VkDeviceMemory stagingBufferMemory;
@@ -772,17 +731,15 @@ void createIndexBuffer(struct VulkanApplication* app, struct Scene* scene) {
 
   void* data;
   vkMapMemory(app->logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
-  memcpy(data, positionIndices, bufferSize);
+  memcpy(data, vertexIndices, bufferSize);
   vkUnmapMemory(app->logicalDevice, stagingBufferMemory);
 
-  createBuffer(app, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->indexBuffer, &app->indexBufferMemory);
+  createBuffer(app, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->indexBuffer, &app->indexBufferMemory);
 
   copyBuffer(app, stagingBuffer, app->indexBuffer, bufferSize);
   
   vkDestroyBuffer(app->logicalDevice, stagingBuffer, NULL);
   vkFreeMemory(app->logicalDevice, stagingBufferMemory, NULL);
-
-  free(positionIndices);
 }
 
 void createUniformBuffers(struct VulkanApplication* app) {
@@ -878,9 +835,9 @@ void createCommandBuffers(struct VulkanApplication* app) {
     vkCmdBeginRenderPass(app->commandBuffers[x], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_GRAPHICS, app->graphicsPipeline);
 
-    VkBuffer vertexBuffers[2] = {app->vertexPositionBuffer, app->vertexNormalBuffer};
-    VkDeviceSize offsets[2] = {0, 0};
-    vkCmdBindVertexBuffers(app->commandBuffers[x], 0, 2, vertexBuffers, offsets);
+    VkBuffer vertexBuffers[1] = {app->vertexPositionBuffer};
+    VkDeviceSize offsets[2] = {0};
+    vkCmdBindVertexBuffers(app->commandBuffers[x], 0, 1, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(app->commandBuffers[x], app->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdBindDescriptorSets(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_GRAPHICS, app->pipelineLayout, 0, 1, &app->descriptorSets[x], 0, NULL);    
     
@@ -1049,14 +1006,14 @@ void runMainLoop(struct VulkanApplication* app, struct Camera* camera) {
   }
 }
 
-void createAccelerationStructure(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp, struct Scene* scene) {
+void createAccelerationStructure(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
   VkAccelerationStructureCreateGeometryTypeInfoKHR geometryInfos = {};
   geometryInfos.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_GEOMETRY_TYPE_INFO_KHR;
   geometryInfos.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-  geometryInfos.maxPrimitiveCount = scene->attributes.num_face_num_verts;
+  geometryInfos.maxPrimitiveCount = 2;
   geometryInfos.indexType = VK_INDEX_TYPE_UINT32;
-  geometryInfos.maxVertexCount = scene->attributes.num_vertices;
-  geometryInfos.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+  geometryInfos.maxVertexCount = 8;
+  geometryInfos.vertexFormat = VK_FORMAT_R32G32_SFLOAT;
   geometryInfos.allowsTransforms = VK_FALSE;
 
   VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo = {};
@@ -1103,7 +1060,7 @@ void bindAccelerationStructure(struct VulkanApplication* app, struct RayTraceApp
   pvkBindAccelerationStructureMemoryKHR(app->logicalDevice, 1, &accelerationStructureMemoryInfo);
 }
 
-void buildAccelerationStructure(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp, struct Scene* scene) {
+void buildAccelerationStructure(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
   PFN_vkGetBufferDeviceAddressKHR pvkGetBufferDeviceAddressKHR = (PFN_vkGetBufferDeviceAddressKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkGetBufferDeviceAddressKHR");
   PFN_vkGetAccelerationStructureMemoryRequirementsKHR pvkGetAccelerationStructureMemoryRequirementsKHR = (PFN_vkGetAccelerationStructureMemoryRequirementsKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkGetAccelerationStructureMemoryRequirementsKHR");
   PFN_vkCmdBuildAccelerationStructureKHR pvkCmdBuildAccelerationStructureKHR = (PFN_vkCmdBuildAccelerationStructureKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkCmdBuildAccelerationStructureKHR");
@@ -1129,7 +1086,7 @@ void buildAccelerationStructure(struct VulkanApplication* app, struct RayTraceAp
   VkAccelerationStructureGeometryTrianglesDataKHR trianglesData = {};
   trianglesData.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
   trianglesData.pNext = NULL;
-  trianglesData.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+  trianglesData.vertexFormat = VK_FORMAT_R32G32_SFLOAT;
   trianglesData.vertexData = vertexDeviceOrHostAddressConst;
   trianglesData.vertexStride = sizeof(float) * 3;
   trianglesData.indexType = VK_INDEX_TYPE_UINT32;
@@ -1188,7 +1145,7 @@ void buildAccelerationStructure(struct VulkanApplication* app, struct RayTraceAp
   };
 
   const VkAccelerationStructureBuildOffsetInfoKHR* buildOffsetInfoPtr = &(VkAccelerationStructureBuildOffsetInfoKHR){
-    .primitiveCount = scene->attributes.num_face_num_verts,
+    .primitiveCount = 2,
     .primitiveOffset = 0,
     .firstVertex = 0,
     .transformOffset = 0  
@@ -1422,7 +1379,6 @@ void createTopLevelAccelerationStructure(struct VulkanApplication* app, struct R
 int main(void) {
   struct VulkanApplication* app = (struct VulkanApplication*)malloc(sizeof(struct VulkanApplication));
   struct RayTraceApplication* rayTraceApp = (struct RayTraceApplication*)malloc(sizeof(struct RayTraceApplication));
-  struct Scene* scene = (struct Scene*)malloc(sizeof(struct Scene));
 
   struct Camera* camera = &(struct Camera) {
     .position = {
@@ -1441,8 +1397,6 @@ int main(void) {
     .frameCount = 0,
   };
 
-  initializeScene(scene, "res/cube_scene.obj");
-
   initializeVulkanContext(app);
   pickPhysicalDevice(app);
   createLogicalConnection(app);
@@ -1452,13 +1406,13 @@ int main(void) {
   createGraphicsPipeline(app);
   createFramebuffers(app);
   createCommandPool(app);
-  createVertexBuffer(app, scene);
-  createIndexBuffer(app, scene);
+  createVertexBuffer(app);
+  createIndexBuffer(app);
   createUniformBuffers(app);
 
-  createAccelerationStructure(app, rayTraceApp, scene);
+  createAccelerationStructure(app, rayTraceApp);
   bindAccelerationStructure(app, rayTraceApp);
-  buildAccelerationStructure(app, rayTraceApp, scene);
+  buildAccelerationStructure(app, rayTraceApp);
   createTopLevelAccelerationStructure(app, rayTraceApp);
 
   createDescriptorPool(app);
