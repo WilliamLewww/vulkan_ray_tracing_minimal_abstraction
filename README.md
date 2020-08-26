@@ -13,3 +13,4 @@ Make sure the *VK_KHR_ray_tracing* extension is available on your device! You ma
 
 To see if the extension is available, you can use the *vulkaninfo* program.
 
+![vulkaninfo](resources/vulkaninfo.png)
