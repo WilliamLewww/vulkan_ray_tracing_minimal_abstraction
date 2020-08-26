@@ -1,4 +1,4 @@
-# vulkan_ray_tracing_minimal_abstraction
+# Vulkan Ray Tracing Minimal Abstraction
 
 There are two different sub-projects found in this repository. Both projects use a simple global illumination model but they differ in the manner of casting the rays.
 
