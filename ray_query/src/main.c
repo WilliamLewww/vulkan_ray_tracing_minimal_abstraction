@@ -112,6 +112,15 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityF
   return VK_FALSE;
 }
 
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+  if (action == GLFW_PRESS) {
+    keyDownIndex[key] = 1;
+  }
+  if (action == GLFW_RELEASE) {
+    keyDownIndex[key] = 0;
+  }
+}
+
 void readFile(const char* fileName, char** buffer, uint64_t* length) {
   uint64_t stringSize = 0;
   uint64_t readSize = 0;
@@ -139,6 +148,8 @@ void initializeVulkanContext(struct VulkanApplication* app) {
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
   app->window = glfwCreateWindow(800, 600, "Vulkan", NULL, NULL);
+
+  glfwSetKeyCallback(app->window, keyCallback);
   
   uint32_t glfwExtensionCount = 0;
   const char** glfwExtensionNames = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);

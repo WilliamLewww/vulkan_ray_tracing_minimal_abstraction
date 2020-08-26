@@ -14,8 +14,6 @@ layout(binding = 1) uniform Camera {
 
 layout(location = 0) in vec3 inPosition;
 
-layout(location = 0) out vec3 fragColor;
-
 void main() {
 	mat4 viewMatrix = {
 		vec4(camera.right.x, camera.up.x, camera.forward.x, 0),
@@ -25,5 +23,4 @@ void main() {
 	};
 
   gl_Position = vec4(inPosition, 1.0);
-  fragColor = vec3(1, 1, 1);
 }
