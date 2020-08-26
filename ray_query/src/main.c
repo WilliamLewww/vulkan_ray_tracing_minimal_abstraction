@@ -11,6 +11,7 @@
 #include <string.h>
 
 #define MAX_FRAMES_IN_FLIGHT      2
+#define ENABLE_VALIDATION         1
 
 struct Scene {
   tinyobj_attrib_t attributes;
@@ -25,6 +26,8 @@ struct VulkanApplication {
   GLFWwindow* window;
   VkSurfaceKHR surface;
   VkInstance instance;
+
+  VkDebugUtilsMessengerEXT debugMessenger;
 
   VkPhysicalDevice physicalDevice;
   VkDevice logicalDevice;
@@ -93,6 +96,12 @@ struct UniformBufferObject {
   float uniformTest;
 };
 
+static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {
+  printf("\033[22;36mvalidation layer\033[0m: \033[22;33m%s\033[0m\n", pCallbackData->pMessage);  
+
+  return VK_FALSE;
+}
+
 void readFile(const char* fileName, char** buffer, uint64_t* length) {
   uint64_t stringSize = 0;
   uint64_t readSize = 0;
@@ -128,19 +137,59 @@ void initializeVulkanContext(struct VulkanApplication* app) {
   
   uint32_t glfwExtensionCount = 0;
   const char** glfwExtensionNames = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+  uint32_t extensionCount = glfwExtensionCount + 2;
+  const char** extensionNames = (const char**)malloc(sizeof(const char*) * extensionCount);
+  memcpy(extensionNames, glfwExtensionNames, sizeof(const char*) * glfwExtensionCount); 
+  extensionNames[glfwExtensionCount] = "VK_KHR_get_physical_device_properties2";
+  extensionNames[glfwExtensionCount + 1] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+
+  VkApplicationInfo applicationInfo = {};
+  applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+  applicationInfo.pApplicationName = "vulkan_c_ray_tracing";
+  applicationInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+  applicationInfo.pEngineName = "No Engine";
+  applicationInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+  applicationInfo.apiVersion = VK_API_VERSION_1_2;
   
   VkInstanceCreateInfo instanceCreateInfo = {};
   instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-  instanceCreateInfo.pNext = NULL;
   instanceCreateInfo.flags = 0;
-  instanceCreateInfo.pApplicationInfo = NULL;
-  instanceCreateInfo.enabledLayerCount = 0;
-  instanceCreateInfo.enabledExtensionCount = glfwExtensionCount;
-  instanceCreateInfo.ppEnabledExtensionNames = glfwExtensionNames;
+  instanceCreateInfo.pApplicationInfo = &applicationInfo;
+  instanceCreateInfo.enabledExtensionCount = extensionCount;
+  instanceCreateInfo.ppEnabledExtensionNames = extensionNames;
 
-  if (vkCreateInstance(&instanceCreateInfo, NULL, &app->instance) == VK_SUCCESS) {
-    printf("created Vulkan instance\n");
-  };
+  if (ENABLE_VALIDATION) {
+    uint32_t layerCount = 1;
+    const char** layerNames = (const char**)malloc(sizeof(const char*) * layerCount);
+    layerNames[0] = "VK_LAYER_KHRONOS_validation";
+
+    VkDebugUtilsMessengerCreateInfoEXT messengerCreateInfo = {};
+    messengerCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    messengerCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    messengerCreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    messengerCreateInfo.pfnUserCallback = debugCallback;
+
+    instanceCreateInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&messengerCreateInfo;
+    instanceCreateInfo.enabledLayerCount = layerCount;
+    instanceCreateInfo.ppEnabledLayerNames = layerNames;
+
+    if (vkCreateInstance(&instanceCreateInfo, NULL, &app->instance) == VK_SUCCESS) {
+      printf("created Vulkan instance\n");
+    }
+
+    PFN_vkCreateDebugUtilsMessengerEXT pvkCreateDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(app->instance, "vkCreateDebugUtilsMessengerEXT");
+    if (pvkCreateDebugUtilsMessengerEXT(app->instance, &messengerCreateInfo, NULL, &app->debugMessenger) == VK_SUCCESS) {
+      printf("created debug messenger\n");
+    }
+  }
+  else {
+    instanceCreateInfo.enabledLayerCount = 0;
+    instanceCreateInfo.pNext = NULL;
+
+    if (vkCreateInstance(&instanceCreateInfo, NULL, &app->instance) == VK_SUCCESS) {
+      printf("created Vulkan instance\n");
+    }
+  }
 
   if (glfwCreateWindowSurface(app->instance, app->window, NULL, &app->surface) == VK_SUCCESS) {
     printf("created window surface\n");
