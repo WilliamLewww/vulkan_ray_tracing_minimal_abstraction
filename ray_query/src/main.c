@@ -720,7 +720,7 @@ void createVertexBuffer(struct VulkanApplication* app, struct Scene* scene) {
   memcpy(positionData, scene->attributes.vertices, positionBufferSize);
   vkUnmapMemory(app->logicalDevice, positionStagingBufferMemory);
 
-  createBuffer(app, positionBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->vertexPositionBuffer, &app->vertexPositionBufferMemory);  
+  createBuffer(app, positionBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->vertexPositionBuffer, &app->vertexPositionBufferMemory);  
 
   copyBuffer(app, positionStagingBuffer, app->vertexPositionBuffer, positionBufferSize);
 
@@ -738,7 +738,7 @@ void createVertexBuffer(struct VulkanApplication* app, struct Scene* scene) {
   memcpy(normalData, scene->attributes.normals, normalBufferSize);
   vkUnmapMemory(app->logicalDevice, normalStagingBufferMemory);
 
-  createBuffer(app, normalBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->vertexNormalBuffer, &app->vertexNormalBufferMemory);  
+  createBuffer(app, normalBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->vertexNormalBuffer, &app->vertexNormalBufferMemory);  
 
   copyBuffer(app, normalStagingBuffer, app->vertexNormalBuffer, normalBufferSize);
 
@@ -763,7 +763,7 @@ void createIndexBuffer(struct VulkanApplication* app, struct Scene* scene) {
   memcpy(data, positionIndices, bufferSize);
   vkUnmapMemory(app->logicalDevice, stagingBufferMemory);
 
-  createBuffer(app, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->indexBuffer, &app->indexBufferMemory);
+  createBuffer(app, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->indexBuffer, &app->indexBufferMemory);
 
   copyBuffer(app, stagingBuffer, app->indexBuffer, bufferSize);
   
