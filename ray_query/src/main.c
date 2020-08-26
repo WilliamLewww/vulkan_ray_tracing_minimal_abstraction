@@ -12,24 +12,6 @@
 
 #define MAX_FRAMES_IN_FLIGHT      2
 
-const float verticesPosition[] = {
-  -0.5f, -0.5f,
-   0.5f, -0.5f,
-   0.5f,  0.5f,
-  -0.5f,  0.5f,
-};
-
-const float verticesColor[] = {
-  1.0f, 0.0f, 0.0f,
-  0.0f, 1.0f, 0.0f,
-  0.0f, 0.0f, 1.0f,
-  1.0f, 1.0f, 1.0f,
-};
-
-const uint32_t vertexIndices[] = {
-  0, 1, 2, 2, 3, 0
-};
-
 struct Scene {
   tinyobj_attrib_t attributes;
   tinyobj_shape_t* shapes;
@@ -89,9 +71,9 @@ struct VulkanApplication {
 
   VkBuffer vertexPositionBuffer;
   VkDeviceMemory vertexPositionBufferMemory;
-  
-  VkBuffer vertexColorBuffer;
-  VkDeviceMemory vertexColorBufferMemory;
+
+  VkBuffer vertexNormalBuffer;
+  VkDeviceMemory vertexNormalBufferMemory;
 
   VkBuffer indexBuffer;
   VkDeviceMemory indexBufferMemory;
@@ -110,6 +92,33 @@ struct RayTraceApplication {
 struct UniformBufferObject {
   float uniformTest;
 };
+
+void readFile(const char* fileName, char** buffer, uint64_t* length) {
+  uint64_t stringSize = 0;
+  uint64_t readSize = 0;
+  FILE * handler = fopen(fileName, "r");
+
+  if (handler) {
+    fseek(handler, 0, SEEK_END);
+    stringSize = ftell(handler);
+    rewind(handler);
+    *buffer = (char*)malloc(sizeof(char) * (stringSize + 1));
+    readSize = fread(*buffer, sizeof(char), (size_t)stringSize, handler);
+    (*buffer)[stringSize] = '\0';
+    if (stringSize != readSize) {
+      free(buffer);
+      *buffer = NULL;
+    }
+    fclose(handler);
+  }
+
+  *length = readSize;
+}
+
+void initializeScene(struct Scene* scene, const char* fileNameOBJ) {
+  tinyobj_attrib_init(&scene->attributes);
+  tinyobj_parse_obj(&scene->attributes, &scene->shapes, &scene->numShapes, &scene->materials, &scene->numMaterials, fileNameOBJ, readFile, TINYOBJ_FLAG_TRIANGULATE);
+}
 
 void initializeVulkanContext(struct VulkanApplication* app) {
   glfwInit();
@@ -650,8 +659,8 @@ void copyBuffer(struct VulkanApplication* app, VkBuffer srcBuffer, VkBuffer dstB
   vkFreeCommandBuffers(app->logicalDevice, app->commandPool, 1, &commandBuffer);
 }
 
-void createVertexBuffer(struct VulkanApplication* app) {
-  VkDeviceSize positionBufferSize = sizeof(float) * 8;
+void createVertexBuffer(struct VulkanApplication* app, struct Scene* scene) {
+  VkDeviceSize positionBufferSize = sizeof(float) * scene->attributes.num_vertices * 3;
   
   VkBuffer positionStagingBuffer;
   VkDeviceMemory positionStagingBufferMemory;
@@ -659,37 +668,42 @@ void createVertexBuffer(struct VulkanApplication* app) {
 
   void* positionData;
   vkMapMemory(app->logicalDevice, positionStagingBufferMemory, 0, positionBufferSize, 0, &positionData);
-  memcpy(positionData, verticesPosition, positionBufferSize);
+  memcpy(positionData, scene->attributes.vertices, positionBufferSize);
   vkUnmapMemory(app->logicalDevice, positionStagingBufferMemory);
 
-  createBuffer(app, positionBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->vertexPositionBuffer, &app->vertexPositionBufferMemory);  
+  createBuffer(app, positionBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->vertexPositionBuffer, &app->vertexPositionBufferMemory);  
 
   copyBuffer(app, positionStagingBuffer, app->vertexPositionBuffer, positionBufferSize);
 
   vkDestroyBuffer(app->logicalDevice, positionStagingBuffer, NULL);
   vkFreeMemory(app->logicalDevice, positionStagingBufferMemory, NULL);
 
-  VkDeviceSize colorBufferSize = sizeof(float) * 12;
+  VkDeviceSize normalBufferSize = sizeof(float) * scene->attributes.num_normals * 3;
   
-  VkBuffer colorStagingBuffer;
-  VkDeviceMemory colorStagingBufferMemory;
-  createBuffer(app, colorBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &colorStagingBuffer, &colorStagingBufferMemory);
+  VkBuffer normalStagingBuffer;
+  VkDeviceMemory normalStagingBufferMemory;
+  createBuffer(app, normalBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &normalStagingBuffer, &normalStagingBufferMemory);
 
-  void* colorData;
-  vkMapMemory(app->logicalDevice, colorStagingBufferMemory, 0, colorBufferSize, 0, &colorData);
-  memcpy(colorData, verticesColor, colorBufferSize);
-  vkUnmapMemory(app->logicalDevice, colorStagingBufferMemory);
+  void* normalData;
+  vkMapMemory(app->logicalDevice, normalStagingBufferMemory, 0, normalBufferSize, 0, &normalData);
+  memcpy(normalData, scene->attributes.normals, normalBufferSize);
+  vkUnmapMemory(app->logicalDevice, normalStagingBufferMemory);
 
-  createBuffer(app, colorBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->vertexColorBuffer, &app->vertexColorBufferMemory);  
+  createBuffer(app, normalBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->vertexNormalBuffer, &app->vertexNormalBufferMemory);  
 
-  copyBuffer(app, colorStagingBuffer, app->vertexColorBuffer, colorBufferSize);
+  copyBuffer(app, normalStagingBuffer, app->vertexNormalBuffer, normalBufferSize);
 
-  vkDestroyBuffer(app->logicalDevice, colorStagingBuffer, NULL);
-  vkFreeMemory(app->logicalDevice, colorStagingBufferMemory, NULL);
+  vkDestroyBuffer(app->logicalDevice, normalStagingBuffer, NULL);
+  vkFreeMemory(app->logicalDevice, normalStagingBufferMemory, NULL);
 }
 
-void createIndexBuffer(struct VulkanApplication* app) {
-  VkDeviceSize bufferSize = sizeof(uint32_t) * 6;
+void createIndexBuffer(struct VulkanApplication* app, struct Scene* scene) {
+  VkDeviceSize bufferSize = sizeof(uint32_t) * scene->attributes.num_faces;
+
+  uint32_t* positionIndices = (uint32_t*)malloc(bufferSize);
+  for (int x = 0; x < scene->attributes.num_faces; x++) {
+    positionIndices[x] = scene->attributes.faces[x].v_idx;
+  }
   
   VkBuffer stagingBuffer;
   VkDeviceMemory stagingBufferMemory;
@@ -697,15 +711,17 @@ void createIndexBuffer(struct VulkanApplication* app) {
 
   void* data;
   vkMapMemory(app->logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
-  memcpy(data, vertexIndices, bufferSize);
+  memcpy(data, positionIndices, bufferSize);
   vkUnmapMemory(app->logicalDevice, stagingBufferMemory);
 
-  createBuffer(app, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->indexBuffer, &app->indexBufferMemory);
+  createBuffer(app, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->indexBuffer, &app->indexBufferMemory);
 
   copyBuffer(app, stagingBuffer, app->indexBuffer, bufferSize);
   
   vkDestroyBuffer(app->logicalDevice, stagingBuffer, NULL);
   vkFreeMemory(app->logicalDevice, stagingBufferMemory, NULL);
+
+  free(positionIndices);
 }
 
 void createUniformBuffers(struct VulkanApplication* app) {
@@ -807,7 +823,7 @@ void createCommandBuffers(struct VulkanApplication* app) {
     vkCmdBeginRenderPass(app->commandBuffers[x], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_GRAPHICS, app->graphicsPipeline);
 
-    VkBuffer vertexBuffers[2] = {app->vertexPositionBuffer, app->vertexColorBuffer};
+    VkBuffer vertexBuffers[2] = {app->vertexPositionBuffer, app->vertexNormalBuffer};
     VkDeviceSize offsets[2] = {0, 0};
     vkCmdBindVertexBuffers(app->commandBuffers[x], 0, 2, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(app->commandBuffers[x], app->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
@@ -1290,6 +1306,8 @@ int main(void) {
   struct RayTraceApplication* rayTraceApp = (struct RayTraceApplication*)malloc(sizeof(struct RayTraceApplication));
   struct Scene* scene = (struct Scene*)malloc(sizeof(struct Scene));
 
+  initializeScene(scene, "res/cube_scene.obj");
+
   initializeVulkanContext(app);
   pickPhysicalDevice(app);
   createLogicalConnection(app);
@@ -1299,8 +1317,8 @@ int main(void) {
   createGraphicsPipeline(app);
   createFramebuffers(app);
   createCommandPool(app);
-  createVertexBuffer(app);
-  createIndexBuffer(app);
+  createVertexBuffer(app, scene);
+  createIndexBuffer(app, scene);
   createUniformBuffers(app);
 
   createAccelerationStructure(app, rayTraceApp, scene);
