@@ -16,17 +16,17 @@ layout(binding = 1, set = 0) uniform Camera {
 } camera;
 
 void main() {
-	vec3 origin = vec3(0, 0, -5);
-	vec3 direction = vec3(0, 0, 1);
+  vec3 origin = vec3(0, 0, -5);
+  vec3 direction = vec3(0, 0, 1);
 
-	rayQueryEXT rayQuery;
-	rayQueryInitializeEXT(rayQuery, topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT, 0xFF, origin, 0.001f, direction, 1000.0f);
+  rayQueryEXT rayQuery;
+  rayQueryInitializeEXT(rayQuery, topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT, 0xFF, origin, 0.001f, direction, 1000.0f);
 
-	while (rayQueryProceedEXT(rayQuery));
+  while (rayQueryProceedEXT(rayQuery));
 
-	if (rayQueryGetIntersectionTypeEXT(rayQuery, true) != gl_RayQueryCommittedIntersectionNoneEXT) {
-		outColor = vec4(1.0, 1.0, 1.0, 1.0);
-	}
+  if (rayQueryGetIntersectionTypeEXT(rayQuery, true) != gl_RayQueryCommittedIntersectionNoneEXT) {
+    outColor = vec4(1.0, 1.0, 1.0, 1.0);
+  }
 
-	outColor = vec4(1.0, 1.0, 1.0, 1.0);
+  outColor = vec4(1.0, 1.0, 1.0, 1.0);
 }
