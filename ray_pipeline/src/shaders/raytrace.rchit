@@ -5,7 +5,7 @@
 #define M_PI 3.1415926535897932384626433832795
 
 struct Material {
-	vec3 ambient;
+  vec3 ambient;
   vec3 diffuse;
   vec3 specular;
   vec3 emission;
@@ -45,82 +45,82 @@ float random(float u, float v) {
 }
 
 vec3 sampleCosineWeightedHemisphere(float u, float v) {
-	float phi = 2.0f * M_PI * u;
+  float phi = 2.0f * M_PI * u;
 
-	float cosPhi = cos(phi);
-	float sinPhi = sin(phi);
+  float cosPhi = cos(phi);
+  float sinPhi = sin(phi);
 
-	float cosTheta = sqrt(v);
-	float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
+  float cosTheta = sqrt(v);
+  float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
 
-	return vec3(sinTheta * cosPhi, cosTheta, sinTheta * sinPhi);
+  return vec3(sinTheta * cosPhi, cosTheta, sinTheta * sinPhi);
 }
 
 vec3 alignHemisphereWithNormal(vec3 hemisphere, vec3 normal) {
-	vec3 right = normalize(cross(normal, vec3(0.0072f, 1.0f, 0.0034f)));
-	vec3 forward = cross(right, normal);
+  vec3 right = normalize(cross(normal, vec3(0.0072f, 1.0f, 0.0034f)));
+  vec3 forward = cross(right, normal);
 
-	return hemisphere.x * right + hemisphere.y * normal + hemisphere.z * forward;
+  return hemisphere.x * right + hemisphere.y * normal + hemisphere.z * forward;
 }
 
 void main() {
-	ivec3 indices = ivec3(indexBuffer.data[3 * gl_PrimitiveID + 0], indexBuffer.data[3 * gl_PrimitiveID + 1], indexBuffer.data[3 * gl_PrimitiveID + 2]);
+  ivec3 indices = ivec3(indexBuffer.data[3 * gl_PrimitiveID + 0], indexBuffer.data[3 * gl_PrimitiveID + 1], indexBuffer.data[3 * gl_PrimitiveID + 2]);
 
-	vec3 barycentric = vec3(1.0 - hitCoordinate.x - hitCoordinate.y, hitCoordinate.x, hitCoordinate.y);
+  vec3 barycentric = vec3(1.0 - hitCoordinate.x - hitCoordinate.y, hitCoordinate.x, hitCoordinate.y);
 
-	vec3 vertexA = vec3(vertexBuffer.data[3 * indices.x + 0], vertexBuffer.data[3 * indices.x + 1], vertexBuffer.data[3 * indices.x + 2]);
-	vec3 vertexB = vec3(vertexBuffer.data[3 * indices.y + 0], vertexBuffer.data[3 * indices.y + 1], vertexBuffer.data[3 * indices.y + 2]);
-	vec3 vertexC = vec3(vertexBuffer.data[3 * indices.z + 0], vertexBuffer.data[3 * indices.z + 1], vertexBuffer.data[3 * indices.z + 2]);
+  vec3 vertexA = vec3(vertexBuffer.data[3 * indices.x + 0], vertexBuffer.data[3 * indices.x + 1], vertexBuffer.data[3 * indices.x + 2]);
+  vec3 vertexB = vec3(vertexBuffer.data[3 * indices.y + 0], vertexBuffer.data[3 * indices.y + 1], vertexBuffer.data[3 * indices.y + 2]);
+  vec3 vertexC = vec3(vertexBuffer.data[3 * indices.z + 0], vertexBuffer.data[3 * indices.z + 1], vertexBuffer.data[3 * indices.z + 2]);
 
-	vec3 position = vertexA * barycentric.x + vertexB * barycentric.y + vertexC * barycentric.z;
-	vec3 geometricNormal = normalize(cross(vertexB - vertexA, vertexC - vertexA));
+  vec3 position = vertexA * barycentric.x + vertexB * barycentric.y + vertexC * barycentric.z;
+  vec3 geometricNormal = normalize(cross(vertexB - vertexA, vertexC - vertexA));
 
-	vec3 surfaceColor = materialBuffer.data[materialIndexBuffer.data[gl_PrimitiveID]].diffuse;
+  vec3 surfaceColor = materialBuffer.data[materialIndexBuffer.data[gl_PrimitiveID]].diffuse;
 
-	{
-		// 34 & 35 == light
-		vec3 lightColor = vec3(0.6, 0.6, 0.6);
+  {
+    // 34 & 35 == light
+    vec3 lightColor = vec3(0.6, 0.6, 0.6);
 
-		ivec3 lightIndices = ivec3(indexBuffer.data[3 * 34 + 0], indexBuffer.data[3 * 34 + 1], indexBuffer.data[3 * 34 + 2]);
+    ivec3 lightIndices = ivec3(indexBuffer.data[3 * 34 + 0], indexBuffer.data[3 * 34 + 1], indexBuffer.data[3 * 34 + 2]);
 
-		vec3 lightVertexA = vec3(vertexBuffer.data[3 * lightIndices.x + 0], vertexBuffer.data[3 * lightIndices.x + 1], vertexBuffer.data[3 * lightIndices.x + 2]);
-		vec3 lightVertexB = vec3(vertexBuffer.data[3 * lightIndices.y + 0], vertexBuffer.data[3 * lightIndices.y + 1], vertexBuffer.data[3 * lightIndices.y + 2]);
-		vec3 lightVertexC = vec3(vertexBuffer.data[3 * lightIndices.z + 0], vertexBuffer.data[3 * lightIndices.z + 1], vertexBuffer.data[3 * lightIndices.z + 2]);
+    vec3 lightVertexA = vec3(vertexBuffer.data[3 * lightIndices.x + 0], vertexBuffer.data[3 * lightIndices.x + 1], vertexBuffer.data[3 * lightIndices.x + 2]);
+    vec3 lightVertexB = vec3(vertexBuffer.data[3 * lightIndices.y + 0], vertexBuffer.data[3 * lightIndices.y + 1], vertexBuffer.data[3 * lightIndices.y + 2]);
+    vec3 lightVertexC = vec3(vertexBuffer.data[3 * lightIndices.z + 0], vertexBuffer.data[3 * lightIndices.z + 1], vertexBuffer.data[3 * lightIndices.z + 2]);
 
-		vec2 uv = vec2(random(gl_LaunchIDEXT.x, camera.frameCount), random(gl_LaunchIDEXT.y, camera.frameCount));
-		if (uv.x + uv.y > 1.0f) {
-			uv.x = 1.0f - uv.x;
-			uv.y = 1.0f - uv.y;
-		}
+    vec2 uv = vec2(random(gl_LaunchIDEXT.x, camera.frameCount), random(gl_LaunchIDEXT.y, camera.frameCount));
+    if (uv.x + uv.y > 1.0f) {
+      uv.x = 1.0f - uv.x;
+      uv.y = 1.0f - uv.y;
+    }
 
-		vec3 lightBarycentric = vec3(1.0 - uv.x - uv.y, uv.x, uv.y);
-		vec3 lightPosition = lightVertexA * lightBarycentric.x + lightVertexB * lightBarycentric.y + lightVertexC * lightBarycentric.z;
+    vec3 lightBarycentric = vec3(1.0 - uv.x - uv.y, uv.x, uv.y);
+    vec3 lightPosition = lightVertexA * lightBarycentric.x + lightVertexB * lightBarycentric.y + lightVertexC * lightBarycentric.z;
 
-		vec3 positionToLightDirection = normalize(lightPosition - position);
+    vec3 positionToLightDirection = normalize(lightPosition - position);
 
-		vec3 shadowRayOrigin = position;
-		vec3 shadowRayDirection = positionToLightDirection;
-		float shadowRayDistance = length(lightPosition - position) - 0.001f;
-		uint shadowRayFlags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+    vec3 shadowRayOrigin = position;
+    vec3 shadowRayDirection = positionToLightDirection;
+    float shadowRayDistance = length(lightPosition - position) - 0.001f;
+    uint shadowRayFlags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
 
-		isShadow = true;
-		traceRayEXT(topLevelAS, shadowRayFlags, 0xFF, 0, 0, 1, shadowRayOrigin, 0.001, shadowRayDirection, shadowRayDistance, 1);
+    isShadow = true;
+    traceRayEXT(topLevelAS, shadowRayFlags, 0xFF, 0, 0, 1, shadowRayOrigin, 0.001, shadowRayDirection, shadowRayDistance, 1);
 
-		if (!isShadow) {
-			if (payload.rayDepth == 0) {
-				payload.directColor = vec3(surfaceColor * lightColor * dot(geometricNormal, positionToLightDirection));
-			}
-			else {
-				payload.indirectColor += vec3(surfaceColor * lightColor * dot(geometricNormal, positionToLightDirection));
-			}
-		}
+    if (!isShadow) {
+      if (payload.rayDepth == 0) {
+        payload.directColor = vec3(surfaceColor * lightColor * dot(geometricNormal, positionToLightDirection));
+      }
+      else {
+        payload.indirectColor += vec3(surfaceColor * lightColor * dot(geometricNormal, positionToLightDirection));
+      }
+    }
 
-		payload.rayDepth += 1;
-	}
+    payload.rayDepth += 1;
+  }
 
-	vec3 sampleDirection = sampleCosineWeightedHemisphere(random(gl_LaunchIDEXT.x, camera.frameCount), random(gl_LaunchIDEXT.y, camera.frameCount));
-	sampleDirection = alignHemisphereWithNormal(sampleDirection, geometricNormal);
+  vec3 sampleDirection = sampleCosineWeightedHemisphere(random(gl_LaunchIDEXT.x, camera.frameCount), random(gl_LaunchIDEXT.y, camera.frameCount));
+  sampleDirection = alignHemisphereWithNormal(sampleDirection, geometricNormal);
 
-	payload.rayOrigin = position + geometricNormal * 0.001f;
-	payload.rayDirection = sampleDirection;
+  payload.rayOrigin = position + geometricNormal * 0.001f;
+  payload.rayDirection = sampleDirection;
 }
