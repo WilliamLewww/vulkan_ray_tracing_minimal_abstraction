@@ -158,6 +158,114 @@ void readFile(const char* fileName, char** buffer, uint64_t* length) {
   *length = readSize;
 }
 
+void createBuffer(struct VulkanApplication* app, VkDeviceSize size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer* buffer, VkDeviceMemory* bufferMemory) {
+  VkBufferCreateInfo bufferCreateInfo = {};
+  bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  bufferCreateInfo.size = size;
+  bufferCreateInfo.usage = usageFlags;
+  bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+  if (vkCreateBuffer(app->logicalDevice, &bufferCreateInfo, NULL, buffer) == VK_SUCCESS) {
+    printf("created buffer\n");
+  }
+
+  VkMemoryRequirements memoryRequirements;
+  vkGetBufferMemoryRequirements(app->logicalDevice, *buffer, &memoryRequirements);
+
+  VkMemoryAllocateInfo memoryAllocateInfo = {};
+  memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  memoryAllocateInfo.allocationSize = memoryRequirements.size;
+
+  uint32_t memoryTypeIndex = -1;
+  for (int x = 0; x < app->memoryProperties.memoryTypeCount; x++) {
+    if ((memoryRequirements.memoryTypeBits & (1 << x)) && (app->memoryProperties.memoryTypes[x].propertyFlags & propertyFlags) == propertyFlags) {
+      memoryTypeIndex = x;
+      break;
+    }
+  }
+  memoryAllocateInfo.memoryTypeIndex = memoryTypeIndex;
+
+  if (vkAllocateMemory(app->logicalDevice, &memoryAllocateInfo, NULL, bufferMemory) == VK_SUCCESS) {
+    printf("allocated buffer memory\n");
+  }
+
+  vkBindBufferMemory(app->logicalDevice, *buffer, *bufferMemory, 0);
+}
+
+void copyBuffer(struct VulkanApplication* app, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+  VkCommandBufferAllocateInfo bufferAllocateInfo = {};
+  bufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  bufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  bufferAllocateInfo.commandPool = app->commandPool;
+  bufferAllocateInfo.commandBufferCount = 1;
+
+  VkCommandBuffer commandBuffer;
+  vkAllocateCommandBuffers(app->logicalDevice, &bufferAllocateInfo, &commandBuffer);
+  
+  VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+  commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+  
+  vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
+  VkBufferCopy bufferCopy = {};
+  bufferCopy.size = size;
+  vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &bufferCopy);
+  vkEndCommandBuffer(commandBuffer);
+
+  VkSubmitInfo submitInfo = {};
+  submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  submitInfo.commandBufferCount = 1;
+  submitInfo.pCommandBuffers = &commandBuffer;
+
+  vkQueueSubmit(app->graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+  vkQueueWaitIdle(app->graphicsQueue);
+
+  vkFreeCommandBuffers(app->logicalDevice, app->commandPool, 1, &commandBuffer);
+}
+
+void createImage(struct VulkanApplication* app, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkImage* image, VkDeviceMemory* imageMemory) {
+  VkImageCreateInfo imageCreateInfo = {};
+  imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+  imageCreateInfo.extent.width = width;
+  imageCreateInfo.extent.height = height;
+  imageCreateInfo.extent.depth = 1;
+  imageCreateInfo.mipLevels = 1;
+  imageCreateInfo.arrayLayers = 1;
+  imageCreateInfo.format = format;
+  imageCreateInfo.tiling = tiling;
+  imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  imageCreateInfo.usage = usageFlags;
+  imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+  imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+  if (vkCreateImage(app->logicalDevice, &imageCreateInfo, NULL, image) == VK_SUCCESS) {
+    printf("created image\n");
+  }
+
+  VkMemoryRequirements memoryRequirements;
+  vkGetImageMemoryRequirements(app->logicalDevice, *image, &memoryRequirements);
+
+  VkMemoryAllocateInfo memoryAllocateInfo = {};
+  memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  memoryAllocateInfo.allocationSize = memoryRequirements.size;
+  
+  uint32_t memoryTypeIndex = -1;
+  for (int x = 0; x < app->memoryProperties.memoryTypeCount; x++) {
+    if ((memoryRequirements.memoryTypeBits & (1 << x)) && (app->memoryProperties.memoryTypes[x].propertyFlags & propertyFlags) == propertyFlags) {
+      memoryTypeIndex = x;
+      break;
+    }
+  }
+  memoryAllocateInfo.memoryTypeIndex = memoryTypeIndex;
+
+  if (vkAllocateMemory(app->logicalDevice, &memoryAllocateInfo, NULL, imageMemory) != VK_SUCCESS) {
+    printf("allocated image memory\n");
+  }
+
+  vkBindImageMemory(app->logicalDevice, *image, *imageMemory, 0);
+}
+
 void initializeScene(struct Scene* scene, const char* fileNameOBJ) {
   tinyobj_attrib_init(&scene->attributes);
   tinyobj_parse_obj(&scene->attributes, &scene->shapes, &scene->numShapes, &scene->materials, &scene->numMaterials, fileNameOBJ, readFile, TINYOBJ_FLAG_TRIANGULATE);
@@ -820,71 +928,6 @@ void createCommandPool(struct VulkanApplication* app) {
   if (vkCreateCommandPool(app->logicalDevice, &commandPoolCreateInfo, NULL, &app->commandPool) == VK_SUCCESS) {
     printf("created command pool\n");
   }
-}
-
-void createBuffer(struct VulkanApplication* app, VkDeviceSize size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer* buffer, VkDeviceMemory* bufferMemory) {
-  VkBufferCreateInfo bufferCreateInfo = {};
-  bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-  bufferCreateInfo.size = size;
-  bufferCreateInfo.usage = usageFlags;
-  bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-  if (vkCreateBuffer(app->logicalDevice, &bufferCreateInfo, NULL, buffer) == VK_SUCCESS) {
-    printf("created buffer\n");
-  }
-
-  VkMemoryRequirements memoryRequirements;
-  vkGetBufferMemoryRequirements(app->logicalDevice, *buffer, &memoryRequirements);
-
-  VkMemoryAllocateInfo memoryAllocateInfo = {};
-  memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-  memoryAllocateInfo.allocationSize = memoryRequirements.size;
-
-  uint32_t memoryTypeIndex = -1;
-  for (int x = 0; x < app->memoryProperties.memoryTypeCount; x++) {
-    if ((memoryRequirements.memoryTypeBits & (1 << x)) && (app->memoryProperties.memoryTypes[x].propertyFlags & propertyFlags) == propertyFlags) {
-      memoryTypeIndex = x;
-      break;
-    }
-  }
-  memoryAllocateInfo.memoryTypeIndex = memoryTypeIndex;
-
-  if (vkAllocateMemory(app->logicalDevice, &memoryAllocateInfo, NULL, bufferMemory) == VK_SUCCESS) {
-    printf("allocated buffer memory\n");
-  }
-
-  vkBindBufferMemory(app->logicalDevice, *buffer, *bufferMemory, 0);
-}
-
-void copyBuffer(struct VulkanApplication* app, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
-  VkCommandBufferAllocateInfo bufferAllocateInfo = {};
-  bufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  bufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  bufferAllocateInfo.commandPool = app->commandPool;
-  bufferAllocateInfo.commandBufferCount = 1;
-
-  VkCommandBuffer commandBuffer;
-  vkAllocateCommandBuffers(app->logicalDevice, &bufferAllocateInfo, &commandBuffer);
-  
-  VkCommandBufferBeginInfo commandBufferBeginInfo = {};
-  commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-  commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-  
-  vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
-  VkBufferCopy bufferCopy = {};
-  bufferCopy.size = size;
-  vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &bufferCopy);
-  vkEndCommandBuffer(commandBuffer);
-
-  VkSubmitInfo submitInfo = {};
-  submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-  submitInfo.commandBufferCount = 1;
-  submitInfo.pCommandBuffers = &commandBuffer;
-
-  vkQueueSubmit(app->graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-  vkQueueWaitIdle(app->graphicsQueue);
-
-  vkFreeCommandBuffers(app->logicalDevice, app->commandPool, 1, &commandBuffer);
 }
 
 void createVertexBuffer(struct VulkanApplication* app, struct Scene* scene) {
