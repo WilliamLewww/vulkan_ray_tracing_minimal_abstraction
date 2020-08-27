@@ -83,9 +83,6 @@ struct VulkanApplication {
   VkBuffer vertexPositionBuffer;
   VkDeviceMemory vertexPositionBufferMemory;
 
-  VkBuffer vertexNormalBuffer;
-  VkDeviceMemory vertexNormalBufferMemory;
-
   VkBuffer materialIndexBuffer;
   VkDeviceMemory materialIndexBufferMemory;
 
@@ -579,24 +576,6 @@ void createVertexBuffer(struct VulkanApplication* app, struct Scene* scene) {
 
   vkDestroyBuffer(app->logicalDevice, positionStagingBuffer, NULL);
   vkFreeMemory(app->logicalDevice, positionStagingBufferMemory, NULL);
-
-  VkDeviceSize normalBufferSize = sizeof(float) * scene->attributes.num_normals * 3;
-  
-  VkBuffer normalStagingBuffer;
-  VkDeviceMemory normalStagingBufferMemory;
-  createBuffer(app, normalBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &normalStagingBuffer, &normalStagingBufferMemory);
-
-  void* normalData;
-  vkMapMemory(app->logicalDevice, normalStagingBufferMemory, 0, normalBufferSize, 0, &normalData);
-  memcpy(normalData, scene->attributes.normals, normalBufferSize);
-  vkUnmapMemory(app->logicalDevice, normalStagingBufferMemory);
-
-  createBuffer(app, normalBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->vertexNormalBuffer, &app->vertexNormalBufferMemory);  
-
-  copyBuffer(app, normalStagingBuffer, app->vertexNormalBuffer, normalBufferSize);
-
-  vkDestroyBuffer(app->logicalDevice, normalStagingBuffer, NULL);
-  vkFreeMemory(app->logicalDevice, normalStagingBufferMemory, NULL);
 }
 
 void createMaterialBuffers(struct VulkanApplication* app, struct Scene* scene) {
