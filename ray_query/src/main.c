@@ -826,21 +826,30 @@ void createGraphicsPipeline(struct VulkanApplication* app, struct RayTraceApplic
 
   VkPipelineShaderStageCreateInfo shaderStages[2] = {vertexShaderStageInfo, fragmentShaderStageInfo};
 
-  app->vertexBindingDescriptions = (VkVertexInputBindingDescription*)malloc(sizeof(VkVertexInputBindingDescription) * 1);
+  app->vertexBindingDescriptions = (VkVertexInputBindingDescription*)malloc(sizeof(VkVertexInputBindingDescription) * 2);
   app->vertexBindingDescriptions[0].binding = 0;
   app->vertexBindingDescriptions[0].stride = sizeof(float) * 3;
   app->vertexBindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-  app->vertexAttributeDescriptions = (VkVertexInputAttributeDescription*)malloc(sizeof(VkVertexInputAttributeDescription) * 1);
+  app->vertexBindingDescriptions[1].binding = 1;
+  app->vertexBindingDescriptions[1].stride = sizeof(float) * 3;
+  app->vertexBindingDescriptions[1].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+  app->vertexAttributeDescriptions = (VkVertexInputAttributeDescription*)malloc(sizeof(VkVertexInputAttributeDescription) * 2);
   app->vertexAttributeDescriptions[0].binding = 0;
   app->vertexAttributeDescriptions[0].location = 0;
   app->vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
   app->vertexAttributeDescriptions[0].offset = 0;
 
+  app->vertexAttributeDescriptions[1].binding = 1;
+  app->vertexAttributeDescriptions[1].location = 1;
+  app->vertexAttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+  app->vertexAttributeDescriptions[1].offset = 0;
+
   VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
   vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-  vertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
-  vertexInputStateCreateInfo.vertexAttributeDescriptionCount = 1;
+  vertexInputStateCreateInfo.vertexBindingDescriptionCount = 2;
+  vertexInputStateCreateInfo.vertexAttributeDescriptionCount = 2;
   vertexInputStateCreateInfo.pVertexBindingDescriptions = app->vertexBindingDescriptions;
   vertexInputStateCreateInfo.pVertexAttributeDescriptions = app->vertexAttributeDescriptions;
   
@@ -1150,9 +1159,9 @@ void createCommandBuffers(struct VulkanApplication* app, struct RayTraceApplicat
     vkCmdBeginRenderPass(app->commandBuffers[x], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_GRAPHICS, app->graphicsPipeline);
 
-    VkBuffer vertexBuffers[1] = {app->vertexPositionBuffer};
-    VkDeviceSize offsets[2] = {0};
-    vkCmdBindVertexBuffers(app->commandBuffers[x], 0, 1, vertexBuffers, offsets);
+    VkBuffer vertexBuffers[2] = {app->vertexPositionBuffer, app->vertexNormalBuffer};
+    VkDeviceSize offsets[2] = {0, 0};
+    vkCmdBindVertexBuffers(app->commandBuffers[x], 0, 2, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(app->commandBuffers[x], app->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdBindDescriptorSets(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_GRAPHICS, app->pipelineLayout, 0, 1, &rayTraceApp->rayTraceDescriptorSet, 0, 0);    
     vkCmdBindDescriptorSets(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_GRAPHICS, app->pipelineLayout, 1, 1, &rayTraceApp->materialDescriptorSet, 0, 0);
