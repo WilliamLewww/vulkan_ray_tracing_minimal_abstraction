@@ -325,6 +325,9 @@ void createLogicalConnection(struct VulkanApplication* app) {
   rayTracingFeatures.rayTracing = VK_TRUE;
   rayTracingFeatures.rayQuery = VK_TRUE;
 
+  VkPhysicalDeviceFeatures deviceFeatures = {};
+  deviceFeatures.geometryShader = VK_TRUE;
+
   VkDeviceCreateInfo deviceCreateInfo = {};
   deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
   deviceCreateInfo.pNext = &rayTracingFeatures;
@@ -334,7 +337,7 @@ void createLogicalConnection(struct VulkanApplication* app) {
   deviceCreateInfo.enabledLayerCount = 0;
   deviceCreateInfo.enabledExtensionCount = deviceEnabledExtensionCount;
   deviceCreateInfo.ppEnabledExtensionNames = deviceEnabledExtensionNames;
-  deviceCreateInfo.pEnabledFeatures = NULL;
+  deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
   if (vkCreateDevice(app->physicalDevice, &deviceCreateInfo, NULL, &app->logicalDevice) == VK_SUCCESS) {
     printf("created logical connection to device\n");
