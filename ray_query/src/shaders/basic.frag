@@ -3,6 +3,13 @@
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_ray_query : enable
 
+struct Material {
+  vec3 ambient;
+  vec3 diffuse;
+  vec3 specular;
+  vec3 emission;
+};
+
 layout(location = 0) out vec4 outColor;
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
@@ -14,6 +21,9 @@ layout(binding = 1, set = 0) uniform Camera {
 
   uint frameCount;
 } camera;
+
+layout(binding = 0, set = 1) buffer MaterialIndexBuffer { uint data[]; } materialIndexBuffer;
+layout(binding = 1, set = 1) buffer MaterialBuffer { Material data[]; } materialBuffer;
 
 void main() {
   vec3 origin = vec3(0, 0, -5);
@@ -28,5 +38,5 @@ void main() {
     outColor = vec4(1.0, 1.0, 1.0, 1.0);
   }
 
-  outColor = vec4(1.0, 1.0, 1.0, 1.0);
+  outColor = vec4(materialBuffer.data[materialIndexBuffer.data[gl_PrimitiveID]].diffuse, 1.0);
 }

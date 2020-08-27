@@ -1,6 +1,8 @@
 #version 460
 #extension GL_ARB_separate_shader_objects : enable
 
+layout(location = 0) in vec3 inPosition;
+
 layout(binding = 1, set = 0) uniform Camera {
   vec4 position;
   vec4 right;
@@ -9,8 +11,6 @@ layout(binding = 1, set = 0) uniform Camera {
 
   uint frameCount;
 } camera;
-
-layout(location = 0) in vec3 inPosition;
 
 void main() {
   mat4 viewMatrix = {
