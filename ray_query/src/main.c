@@ -155,6 +155,7 @@ void initializeVulkanContext(struct VulkanApplication* app) {
   glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
   app->window = glfwCreateWindow(800, 600, "Vulkan", NULL, NULL);
 
+  glfwSetInputMode(app->window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
   glfwSetKeyCallback(app->window, keyCallback);
   
   uint32_t glfwExtensionCount = 0;
@@ -866,7 +867,7 @@ void createUniformBuffers(struct VulkanApplication* app) {
   createBuffer(app, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &app->uniformBuffer, &app->uniformBufferMemory);
 }
 
-void createCommandBuffers(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
+void createCommandBuffers(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp, struct Scene* scene) {
   app->commandBuffers = (VkCommandBuffer*)malloc(sizeof(VkCommandBuffer) * app->imageCount);
   
   VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
@@ -908,7 +909,7 @@ void createCommandBuffers(struct VulkanApplication* app, struct RayTraceApplicat
     vkCmdBindIndexBuffer(app->commandBuffers[x], app->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdBindDescriptorSets(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_GRAPHICS, app->pipelineLayout, 0, 1, &rayTraceApp->rayTraceDescriptorSet, 0, NULL);    
     
-    vkCmdDrawIndexed(app->commandBuffers[x], 6, 1, 0, 0, 0);
+    vkCmdDrawIndexed(app->commandBuffers[x], scene->attributes.num_faces, 1, 0, 0, 0);
     vkCmdEndRenderPass(app->commandBuffers[x]);
 
     if (vkEndCommandBuffer(app->commandBuffers[x]) == VK_SUCCESS) {
@@ -1486,7 +1487,7 @@ int main(void) {
   createDescriptorSets(app, rayTraceApp);
   createGraphicsPipeline(app, rayTraceApp);
 
-  createCommandBuffers(app, rayTraceApp);
+  createCommandBuffers(app, rayTraceApp, scene);
   createSynchronizationObjects(app);
 
   runMainLoop(app, camera);

@@ -3,6 +3,8 @@
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_ray_query : enable
 
+layout(location = 0) in vec3 color;
+
 layout(location = 0) out vec4 outColor;
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
@@ -27,7 +29,6 @@ void main() {
 	if (rayQueryGetIntersectionTypeEXT(rayQuery, true) != gl_RayQueryCommittedIntersectionNoneEXT) {
 		outColor = vec4(1.0, 1.0, 1.0, 1.0);
 	}
-	else {
-		outColor = vec4(0.0, 0.0, 0.0, 0.0);
-	}
+
+	outColor = vec4(color, 1.0);
 }
