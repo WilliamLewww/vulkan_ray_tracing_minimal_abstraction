@@ -29,6 +29,13 @@ struct Camera {
   uint32_t frameCount;
 };
 
+struct Material {
+  float ambient[3]; int padA;
+  float diffuse[3]; int padB;
+  float specular[3]; int padC;
+  float emission[3]; int padD;
+};
+
 struct Scene {
   tinyobj_attrib_t attributes;
   tinyobj_shape_t* shapes;
@@ -92,6 +99,12 @@ struct VulkanApplication {
 
   VkBuffer indexBuffer;
   VkDeviceMemory indexBufferMemory;
+
+  VkBuffer materialIndexBuffer;
+  VkDeviceMemory materialIndexBufferMemory;
+
+  VkBuffer materialBuffer;
+  VkDeviceMemory materialBufferMemory;
 };
 
 struct RayTraceApplication {
@@ -104,6 +117,7 @@ struct RayTraceApplication {
   VkDeviceMemory topLevelAccelerationStructureBufferMemory;
 
   VkDescriptorSet rayTraceDescriptorSet;
+  VkDescriptorSet materialDescriptorSet;
   VkDescriptorSetLayout* rayTraceDescriptorSetLayouts;
 };
 
@@ -462,11 +476,14 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
   descriptorPoolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
   descriptorPoolSizes[1].descriptorCount = 1;
 
+  descriptorPoolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+  descriptorPoolSizes[2].descriptorCount = 2;
+
   VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
   descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-  descriptorPoolCreateInfo.poolSizeCount = 2;
+  descriptorPoolCreateInfo.poolSizeCount = 3;
   descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes;
-  descriptorPoolCreateInfo.maxSets = 1;
+  descriptorPoolCreateInfo.maxSets = 2;
 
   if (vkCreateDescriptorPool(app->logicalDevice, &descriptorPoolCreateInfo, NULL, &descriptorPool) == VK_SUCCESS) {
     printf("\033[22;32m%s\033[0m\n", "created descriptor pool");
@@ -538,6 +555,76 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
     writeDescriptorSets[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     writeDescriptorSets[1].pImageInfo = NULL;
     writeDescriptorSets[1].pBufferInfo = &bufferInfo;
+    writeDescriptorSets[1].pTexelBufferView = NULL;
+
+    vkUpdateDescriptorSets(app->logicalDevice, 2, writeDescriptorSets, 0, NULL);
+  }
+
+  {
+    VkDescriptorSetLayoutBinding descriptorSetLayoutBindings[2];
+    descriptorSetLayoutBindings[0].binding = 0;
+    descriptorSetLayoutBindings[0].descriptorCount = 1;
+    descriptorSetLayoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorSetLayoutBindings[0].pImmutableSamplers = NULL;
+    descriptorSetLayoutBindings[0].stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+
+    descriptorSetLayoutBindings[1].binding = 1;
+    descriptorSetLayoutBindings[1].descriptorCount = 1;
+    descriptorSetLayoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorSetLayoutBindings[1].pImmutableSamplers = NULL;
+    descriptorSetLayoutBindings[1].stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+   
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+    descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptorSetLayoutCreateInfo.bindingCount = 2;
+    descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings;
+    
+    if (vkCreateDescriptorSetLayout(app->logicalDevice, &descriptorSetLayoutCreateInfo, NULL, &rayTraceApp->rayTraceDescriptorSetLayouts[1]) == VK_SUCCESS) {
+      printf("\033[22;32m%s\033[0m\n", "created descriptor set layout");
+    }
+
+    VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+    descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    descriptorSetAllocateInfo.descriptorPool = descriptorPool;
+    descriptorSetAllocateInfo.descriptorSetCount = 1;
+    descriptorSetAllocateInfo.pSetLayouts = &rayTraceApp->rayTraceDescriptorSetLayouts[1];
+
+    if (vkAllocateDescriptorSets(app->logicalDevice, &descriptorSetAllocateInfo, &rayTraceApp->materialDescriptorSet) == VK_SUCCESS) {
+      printf("\033[22;32m%s\033[0m\n", "allocated descriptor sets");
+    }
+
+    VkWriteDescriptorSet writeDescriptorSets[2];
+
+    VkDescriptorBufferInfo materialIndexBufferInfo = {};
+    materialIndexBufferInfo.buffer = app->materialIndexBuffer;
+    materialIndexBufferInfo.offset = 0;
+    materialIndexBufferInfo.range = VK_WHOLE_SIZE;
+
+    writeDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeDescriptorSets[0].pNext = NULL;
+    writeDescriptorSets[0].dstSet = rayTraceApp->materialDescriptorSet;
+    writeDescriptorSets[0].dstBinding = 0;
+    writeDescriptorSets[0].dstArrayElement = 0;
+    writeDescriptorSets[0].descriptorCount = 1;
+    writeDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writeDescriptorSets[0].pImageInfo = NULL;
+    writeDescriptorSets[0].pBufferInfo = &materialIndexBufferInfo;
+    writeDescriptorSets[0].pTexelBufferView = NULL;
+
+    VkDescriptorBufferInfo materialBufferInfo = {};
+    materialBufferInfo.buffer = app->materialBuffer;
+    materialBufferInfo.offset = 0;
+    materialBufferInfo.range = VK_WHOLE_SIZE;
+
+    writeDescriptorSets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeDescriptorSets[1].pNext = NULL;
+    writeDescriptorSets[1].dstSet = rayTraceApp->materialDescriptorSet;
+    writeDescriptorSets[1].dstBinding = 1;
+    writeDescriptorSets[1].dstArrayElement = 0;
+    writeDescriptorSets[1].descriptorCount = 1;
+    writeDescriptorSets[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writeDescriptorSets[1].pImageInfo = NULL;
+    writeDescriptorSets[1].pBufferInfo = &materialBufferInfo;
     writeDescriptorSets[1].pTexelBufferView = NULL;
 
     vkUpdateDescriptorSets(app->logicalDevice, 2, writeDescriptorSets, 0, NULL);
@@ -672,7 +759,7 @@ void createGraphicsPipeline(struct VulkanApplication* app, struct RayTraceApplic
 
   VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
   pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutCreateInfo.setLayoutCount = 1;
+  pipelineLayoutCreateInfo.setLayoutCount = 2;
   pipelineLayoutCreateInfo.pSetLayouts = rayTraceApp->rayTraceDescriptorSetLayouts;
 
   if (vkCreatePipelineLayout(app->logicalDevice, &pipelineLayoutCreateInfo, NULL, &app->pipelineLayout) == VK_SUCCESS) {
@@ -862,6 +949,54 @@ void createIndexBuffer(struct VulkanApplication* app, struct Scene* scene) {
   free(positionIndices);
 }
 
+void createMaterialBuffers(struct VulkanApplication* app, struct Scene* scene) {
+  VkDeviceSize indexBufferSize = sizeof(uint32_t) * scene->attributes.num_face_num_verts;
+
+  VkBuffer indexStagingBuffer;
+  VkDeviceMemory indexStagingBufferMemory;
+  createBuffer(app, indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &indexStagingBuffer, &indexStagingBufferMemory);
+
+  void* indexData;
+  vkMapMemory(app->logicalDevice, indexStagingBufferMemory, 0, indexBufferSize, 0, &indexData);
+  memcpy(indexData, scene->attributes.material_ids, indexBufferSize);
+  vkUnmapMemory(app->logicalDevice, indexStagingBufferMemory);
+
+  createBuffer(app, indexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->materialIndexBuffer, &app->materialIndexBufferMemory);
+
+  copyBuffer(app, indexStagingBuffer, app->materialIndexBuffer, indexBufferSize);
+  
+  vkDestroyBuffer(app->logicalDevice, indexStagingBuffer, NULL);
+  vkFreeMemory(app->logicalDevice, indexStagingBufferMemory, NULL);
+
+  VkDeviceSize materialBufferSize = sizeof(struct Material) * scene->numMaterials;
+
+  struct Material* materials = (struct Material*)malloc(materialBufferSize);
+  for (int x = 0; x < scene->numMaterials; x++) {
+    memcpy(materials[x].ambient, scene->materials[x].ambient, sizeof(float) * 3);
+    memcpy(materials[x].diffuse, scene->materials[x].diffuse, sizeof(float) * 3);
+    memcpy(materials[x].specular, scene->materials[x].specular, sizeof(float) * 3);
+    memcpy(materials[x].emission, scene->materials[x].emission, sizeof(float) * 3);
+  }
+
+  VkBuffer materialStagingBuffer;
+  VkDeviceMemory materialStagingBufferMemory;
+  createBuffer(app, materialBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &materialStagingBuffer, &materialStagingBufferMemory);
+
+  void* materialData;
+  vkMapMemory(app->logicalDevice, materialStagingBufferMemory, 0, materialBufferSize, 0, &materialData);
+  memcpy(materialData, materials, materialBufferSize);
+  vkUnmapMemory(app->logicalDevice, materialStagingBufferMemory);
+
+  createBuffer(app, materialBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->materialBuffer, &app->materialBufferMemory);
+
+  copyBuffer(app, materialStagingBuffer, app->materialBuffer, materialBufferSize);
+  
+  vkDestroyBuffer(app->logicalDevice, materialStagingBuffer, NULL);
+  vkFreeMemory(app->logicalDevice, materialStagingBufferMemory, NULL);
+
+  free(materials);
+}
+
 void createUniformBuffers(struct VulkanApplication* app) {
   VkDeviceSize bufferSize = sizeof(struct Camera);
   createBuffer(app, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &app->uniformBuffer, &app->uniformBufferMemory);
@@ -907,8 +1042,9 @@ void createCommandBuffers(struct VulkanApplication* app, struct RayTraceApplicat
     VkDeviceSize offsets[2] = {0};
     vkCmdBindVertexBuffers(app->commandBuffers[x], 0, 1, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(app->commandBuffers[x], app->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdBindDescriptorSets(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_GRAPHICS, app->pipelineLayout, 0, 1, &rayTraceApp->rayTraceDescriptorSet, 0, NULL);    
-    
+    vkCmdBindDescriptorSets(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_GRAPHICS, app->pipelineLayout, 0, 1, &rayTraceApp->rayTraceDescriptorSet, 0, 0);    
+    vkCmdBindDescriptorSets(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_GRAPHICS, app->pipelineLayout, 1, 1, &rayTraceApp->materialDescriptorSet, 0, 0);
+
     vkCmdDrawIndexed(app->commandBuffers[x], scene->attributes.num_faces, 1, 0, 0, 0);
     vkCmdEndRenderPass(app->commandBuffers[x]);
 
@@ -1477,6 +1613,7 @@ int main(void) {
   createCommandPool(app);
   createVertexBuffer(app, scene);
   createIndexBuffer(app, scene);
+  createMaterialBuffers(app, scene);
   createUniformBuffers(app);
 
   createAccelerationStructure(app, rayTraceApp, scene);
