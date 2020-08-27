@@ -598,13 +598,13 @@ void createGraphicsPipeline(struct VulkanApplication* app, struct RayTraceApplic
 
   app->vertexBindingDescriptions = (VkVertexInputBindingDescription*)malloc(sizeof(VkVertexInputBindingDescription) * 1);
   app->vertexBindingDescriptions[0].binding = 0;
-  app->vertexBindingDescriptions[0].stride = sizeof(float) * 2;
+  app->vertexBindingDescriptions[0].stride = sizeof(float) * 3;
   app->vertexBindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
   app->vertexAttributeDescriptions = (VkVertexInputAttributeDescription*)malloc(sizeof(VkVertexInputAttributeDescription) * 1);
   app->vertexAttributeDescriptions[0].binding = 0;
   app->vertexAttributeDescriptions[0].location = 0;
-  app->vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+  app->vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
   app->vertexAttributeDescriptions[0].offset = 0;
 
   VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
