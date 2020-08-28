@@ -10,6 +10,9 @@ struct Material {
   vec3 emission;
 };
 
+layout(location = 0) in vec3 interpolatedPosition;
+layout(location = 1) in vec3 interpolatedNormal;
+
 layout(location = 0) out vec4 outColor;
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
