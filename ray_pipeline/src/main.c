@@ -531,6 +531,26 @@ void createCommandPool(struct VulkanApplication* app) {
   }
 }
 
+void createVertexBuffer(struct VulkanApplication* app, struct Scene* scene) {
+  VkDeviceSize positionBufferSize = sizeof(float) * scene->attributes.num_vertices * 3;
+  
+  VkBuffer positionStagingBuffer;
+  VkDeviceMemory positionStagingBufferMemory;
+  createBuffer(app, positionBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &positionStagingBuffer, &positionStagingBufferMemory);
+
+  void* positionData;
+  vkMapMemory(app->logicalDevice, positionStagingBufferMemory, 0, positionBufferSize, 0, &positionData);
+  memcpy(positionData, scene->attributes.vertices, positionBufferSize);
+  vkUnmapMemory(app->logicalDevice, positionStagingBufferMemory);
+
+  createBuffer(app, positionBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->vertexPositionBuffer, &app->vertexPositionBufferMemory);  
+
+  copyBuffer(app, positionStagingBuffer, app->vertexPositionBuffer, positionBufferSize);
+
+  vkDestroyBuffer(app->logicalDevice, positionStagingBuffer, NULL);
+  vkFreeMemory(app->logicalDevice, positionStagingBufferMemory, NULL);
+}
+
 void createIndexBuffer(struct VulkanApplication* app, struct Scene* scene) {
   VkDeviceSize bufferSize = sizeof(uint32_t) * scene->attributes.num_faces;
 
@@ -556,26 +576,6 @@ void createIndexBuffer(struct VulkanApplication* app, struct Scene* scene) {
   vkFreeMemory(app->logicalDevice, stagingBufferMemory, NULL);
 
   free(positionIndices);
-}
-
-void createVertexBuffer(struct VulkanApplication* app, struct Scene* scene) {
-  VkDeviceSize positionBufferSize = sizeof(float) * scene->attributes.num_vertices * 3;
-  
-  VkBuffer positionStagingBuffer;
-  VkDeviceMemory positionStagingBufferMemory;
-  createBuffer(app, positionBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &positionStagingBuffer, &positionStagingBufferMemory);
-
-  void* positionData;
-  vkMapMemory(app->logicalDevice, positionStagingBufferMemory, 0, positionBufferSize, 0, &positionData);
-  memcpy(positionData, scene->attributes.vertices, positionBufferSize);
-  vkUnmapMemory(app->logicalDevice, positionStagingBufferMemory);
-
-  createBuffer(app, positionBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->vertexPositionBuffer, &app->vertexPositionBufferMemory);  
-
-  copyBuffer(app, positionStagingBuffer, app->vertexPositionBuffer, positionBufferSize);
-
-  vkDestroyBuffer(app->logicalDevice, positionStagingBuffer, NULL);
-  vkFreeMemory(app->logicalDevice, positionStagingBufferMemory, NULL);
 }
 
 void createMaterialBuffers(struct VulkanApplication* app, struct Scene* scene) {
@@ -684,31 +684,6 @@ void createTextures(struct VulkanApplication* app, struct RayTraceApplication* r
   vkQueueWaitIdle(app->computeQueue);
 
   vkFreeCommandBuffers(app->logicalDevice, app->commandPool, 1, &commandBuffer);
-}
-
-void createSynchronizationObjects(struct VulkanApplication* app) {
-  app->imageAvailableSemaphores = (VkSemaphore*)malloc(sizeof(VkSemaphore) * MAX_FRAMES_IN_FLIGHT);
-  app->renderFinishedSemaphores = (VkSemaphore*)malloc(sizeof(VkSemaphore) * MAX_FRAMES_IN_FLIGHT);
-  app->inFlightFences = (VkFence*)malloc(sizeof(VkFence) * MAX_FRAMES_IN_FLIGHT);
-  app->imagesInFlight = (VkFence*)malloc(sizeof(VkFence) * app->imageCount);
-  for (int x = 0; x < app->imageCount; x++) {
-    app->imagesInFlight[x] = VK_NULL_HANDLE;
-  }
-
-  VkSemaphoreCreateInfo semaphoreCreateInfo = {};
-  semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-  VkFenceCreateInfo fenceCreateInfo = {};
-  fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-  fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-  for (int x = 0; x < MAX_FRAMES_IN_FLIGHT; x++) {
-    if (vkCreateSemaphore(app->logicalDevice, &semaphoreCreateInfo, NULL, &app->imageAvailableSemaphores[x]) == VK_SUCCESS &&
-        vkCreateSemaphore(app->logicalDevice, &semaphoreCreateInfo, NULL, &app->renderFinishedSemaphores[x]) == VK_SUCCESS &&
-        vkCreateFence(app->logicalDevice, &fenceCreateInfo, NULL, &app->inFlightFences[x]) == VK_SUCCESS) {
-      printf("created synchronization objects for frame #%d\n", x);
-    }
-  }
 }
 
 void createAccelerationStructure(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp, struct Scene* scene) {
@@ -1081,16 +1056,9 @@ void createTopLevelAccelerationStructure(struct VulkanApplication* app, struct R
   vkFreeCommandBuffers(app->logicalDevice, app->commandPool, 1, &commandBuffer);
 }
 
-void createUniformBuffers(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
+void createUniformBuffer(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
   VkDeviceSize bufferSize = sizeof(struct Camera);
   createBuffer(app, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &rayTraceApp->uniformBuffer, &rayTraceApp->uniformBufferMemory);
-}
-
-void updateRayTraceUniformBuffer(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp, struct Camera* camera) {
-  void* data;
-  vkMapMemory(app->logicalDevice, rayTraceApp->uniformBufferMemory, 0, sizeof(struct Camera), 0, &data);
-  memcpy(data, camera, sizeof(struct Camera));
-  vkUnmapMemory(app->logicalDevice, rayTraceApp->uniformBufferMemory);
 }
 
 void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
@@ -1712,6 +1680,38 @@ void createCommandBuffers(struct VulkanApplication* app, struct RayTraceApplicat
   }
 }
 
+void createSynchronizationObjects(struct VulkanApplication* app) {
+  app->imageAvailableSemaphores = (VkSemaphore*)malloc(sizeof(VkSemaphore) * MAX_FRAMES_IN_FLIGHT);
+  app->renderFinishedSemaphores = (VkSemaphore*)malloc(sizeof(VkSemaphore) * MAX_FRAMES_IN_FLIGHT);
+  app->inFlightFences = (VkFence*)malloc(sizeof(VkFence) * MAX_FRAMES_IN_FLIGHT);
+  app->imagesInFlight = (VkFence*)malloc(sizeof(VkFence) * app->imageCount);
+  for (int x = 0; x < app->imageCount; x++) {
+    app->imagesInFlight[x] = VK_NULL_HANDLE;
+  }
+
+  VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+  semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+  VkFenceCreateInfo fenceCreateInfo = {};
+  fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+  fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+  for (int x = 0; x < MAX_FRAMES_IN_FLIGHT; x++) {
+    if (vkCreateSemaphore(app->logicalDevice, &semaphoreCreateInfo, NULL, &app->imageAvailableSemaphores[x]) == VK_SUCCESS &&
+        vkCreateSemaphore(app->logicalDevice, &semaphoreCreateInfo, NULL, &app->renderFinishedSemaphores[x]) == VK_SUCCESS &&
+        vkCreateFence(app->logicalDevice, &fenceCreateInfo, NULL, &app->inFlightFences[x]) == VK_SUCCESS) {
+      printf("created synchronization objects for frame #%d\n", x);
+    }
+  }
+}
+
+void updateUniformBuffer(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp, struct Camera* camera) {
+  void* data;
+  vkMapMemory(app->logicalDevice, rayTraceApp->uniformBufferMemory, 0, sizeof(struct Camera), 0, &data);
+  memcpy(data, camera, sizeof(struct Camera));
+  vkUnmapMemory(app->logicalDevice, rayTraceApp->uniformBufferMemory);
+}
+
 void drawFrame(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp, struct Camera* camera) {
   vkWaitForFences(app->logicalDevice, 1, &app->inFlightFences[app->currentFrame], VK_TRUE, UINT64_MAX);
     
@@ -1723,7 +1723,7 @@ void drawFrame(struct VulkanApplication* app, struct RayTraceApplication* rayTra
   }
   app->imagesInFlight[imageIndex] = app->inFlightFences[app->currentFrame];
  
-  updateRayTraceUniformBuffer(app, rayTraceApp, camera);
+  updateUniformBuffer(app, rayTraceApp, camera);
    
   VkSubmitInfo submitInfo = {};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1865,8 +1865,8 @@ int main(void) {
   createLogicalConnection(app);
   createSwapchain(app);  
   createCommandPool(app);
-  createIndexBuffer(app, scene);
   createVertexBuffer(app, scene);
+  createIndexBuffer(app, scene);
   createMaterialBuffers(app, scene);
   createTextures(app, rayTraceApp);
 
@@ -1875,7 +1875,7 @@ int main(void) {
   buildAccelerationStructure(app, rayTraceApp, scene);
   createTopLevelAccelerationStructure(app, rayTraceApp);
 
-  createUniformBuffers(app, rayTraceApp);
+  createUniformBuffer(app, rayTraceApp);
   createDescriptorSets(app, rayTraceApp);
 
   createRayTracePipeline(app, rayTraceApp);
