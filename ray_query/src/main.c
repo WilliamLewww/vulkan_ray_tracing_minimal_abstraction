@@ -106,9 +106,7 @@ struct VulkanApplication {
   VkImage depthImage;
   VkDeviceMemory depthImageMemory;
   VkImageView depthImageView;
-};
 
-struct RayTraceApplication {
   VkAccelerationStructureKHR accelerationStructure;
   VkBuffer accelerationStructureBuffer;
   VkDeviceMemory accelerationStructureBufferMemory;
@@ -760,8 +758,8 @@ void createMaterialBuffers(struct VulkanApplication* app, struct Scene* scene) {
   free(materials);
 }
 
-void createTextures(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
-  createImage(app, 800, 600, app->swapchainImageFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &rayTraceApp->rayTraceImage, &rayTraceApp->rayTraceImageMemory);
+void createTextures(struct VulkanApplication* app) {
+  createImage(app, 800, 600, app->swapchainImageFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->rayTraceImage, &app->rayTraceImageMemory);
 
   VkImageSubresourceRange subresourceRange = {};
   subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -776,9 +774,9 @@ void createTextures(struct VulkanApplication* app, struct RayTraceApplication* r
   imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
   imageViewCreateInfo.format = app->swapchainImageFormat;
   imageViewCreateInfo.subresourceRange = subresourceRange;
-  imageViewCreateInfo.image = rayTraceApp->rayTraceImage;
+  imageViewCreateInfo.image = app->rayTraceImage;
 
-  if (vkCreateImageView(app->logicalDevice, &imageViewCreateInfo, NULL, &rayTraceApp->rayTraceImageView) == VK_SUCCESS) {
+  if (vkCreateImageView(app->logicalDevice, &imageViewCreateInfo, NULL, &app->rayTraceImageView) == VK_SUCCESS) {
     printf("created image view\n");
   }
 
@@ -787,7 +785,7 @@ void createTextures(struct VulkanApplication* app, struct RayTraceApplication* r
   imageMemoryBarrier.pNext = NULL;
   imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-  imageMemoryBarrier.image = rayTraceApp->rayTraceImage;
+  imageMemoryBarrier.image = app->rayTraceImage;
   imageMemoryBarrier.subresourceRange = subresourceRange;
   imageMemoryBarrier.srcAccessMask = 0;
   imageMemoryBarrier.dstAccessMask = 0;
@@ -820,7 +818,7 @@ void createTextures(struct VulkanApplication* app, struct RayTraceApplication* r
   vkFreeCommandBuffers(app->logicalDevice, app->commandPool, 1, &commandBuffer);
 }
 
-void createAccelerationStructure(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp, struct Scene* scene) {
+void createAccelerationStructure(struct VulkanApplication* app, struct Scene* scene) {
   VkAccelerationStructureCreateGeometryTypeInfoKHR geometryInfos = {};
   geometryInfos.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_GEOMETRY_TYPE_INFO_KHR;
   geometryInfos.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
@@ -838,19 +836,19 @@ void createAccelerationStructure(struct VulkanApplication* app, struct RayTraceA
   accelerationStructureCreateInfo.pGeometryInfos = &geometryInfos;
   
   PFN_vkCreateAccelerationStructureKHR pvkCreateAccelerationStructureKHR = (PFN_vkCreateAccelerationStructureKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkCreateAccelerationStructureKHR");
-  if (pvkCreateAccelerationStructureKHR(app->logicalDevice, &accelerationStructureCreateInfo, NULL, &rayTraceApp->accelerationStructure) == VK_SUCCESS) {
+  if (pvkCreateAccelerationStructureKHR(app->logicalDevice, &accelerationStructureCreateInfo, NULL, &app->accelerationStructure) == VK_SUCCESS) {
     printf("\033[22;32m%s\033[0m\n", "created acceleration structure");
   }
 }
 
-void bindAccelerationStructure(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
+void bindAccelerationStructure(struct VulkanApplication* app) {
   PFN_vkGetAccelerationStructureMemoryRequirementsKHR pvkGetAccelerationStructureMemoryRequirementsKHR = (PFN_vkGetAccelerationStructureMemoryRequirementsKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkGetAccelerationStructureMemoryRequirementsKHR");
   PFN_vkBindAccelerationStructureMemoryKHR pvkBindAccelerationStructureMemoryKHR = (PFN_vkBindAccelerationStructureMemoryKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkBindAccelerationStructureMemoryKHR");
     
   VkAccelerationStructureMemoryRequirementsInfoKHR memoryRequirementsInfo = {};
   memoryRequirementsInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_KHR;
   memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_OBJECT_KHR;
-  memoryRequirementsInfo.accelerationStructure = rayTraceApp->accelerationStructure;
+  memoryRequirementsInfo.accelerationStructure = app->accelerationStructure;
   memoryRequirementsInfo.buildType = VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR;
 
   VkMemoryRequirements2 memoryRequirements = {};
@@ -859,13 +857,13 @@ void bindAccelerationStructure(struct VulkanApplication* app, struct RayTraceApp
 
   VkDeviceSize accelerationStructureSize = memoryRequirements.memoryRequirements.size;
 
-  createBuffer(app, accelerationStructureSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &rayTraceApp->accelerationStructureBuffer, &rayTraceApp->accelerationStructureBufferMemory);
+  createBuffer(app, accelerationStructureSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->accelerationStructureBuffer, &app->accelerationStructureBufferMemory);
 
   const VkBindAccelerationStructureMemoryInfoKHR accelerationStructureMemoryInfo = {
     .sType = VK_STRUCTURE_TYPE_BIND_ACCELERATION_STRUCTURE_MEMORY_INFO_KHR,
     .pNext = NULL,
-    .accelerationStructure = rayTraceApp->accelerationStructure,
-    .memory = rayTraceApp->accelerationStructureBufferMemory,
+    .accelerationStructure = app->accelerationStructure,
+    .memory = app->accelerationStructureBufferMemory,
     .memoryOffset = 0,
     .deviceIndexCount = 0,
     .pDeviceIndices = NULL
@@ -874,7 +872,7 @@ void bindAccelerationStructure(struct VulkanApplication* app, struct RayTraceApp
   pvkBindAccelerationStructureMemoryKHR(app->logicalDevice, 1, &accelerationStructureMemoryInfo);
 }
 
-void buildAccelerationStructure(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp, struct Scene* scene) {
+void buildAccelerationStructure(struct VulkanApplication* app, struct Scene* scene) {
   PFN_vkGetBufferDeviceAddressKHR pvkGetBufferDeviceAddressKHR = (PFN_vkGetBufferDeviceAddressKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkGetBufferDeviceAddressKHR");
   PFN_vkGetAccelerationStructureMemoryRequirementsKHR pvkGetAccelerationStructureMemoryRequirementsKHR = (PFN_vkGetAccelerationStructureMemoryRequirementsKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkGetAccelerationStructureMemoryRequirementsKHR");
   PFN_vkCmdBuildAccelerationStructureKHR pvkCmdBuildAccelerationStructureKHR = (PFN_vkCmdBuildAccelerationStructureKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkCmdBuildAccelerationStructureKHR");
@@ -922,7 +920,7 @@ void buildAccelerationStructure(struct VulkanApplication* app, struct RayTraceAp
   VkAccelerationStructureMemoryRequirementsInfoKHR memoryRequirementsInfo = {};
   memoryRequirementsInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_KHR;
   memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_BUILD_SCRATCH_KHR;
-  memoryRequirementsInfo.accelerationStructure = rayTraceApp->accelerationStructure;
+  memoryRequirementsInfo.accelerationStructure = app->accelerationStructure;
   memoryRequirementsInfo.buildType = VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR;
 
   VkMemoryRequirements2 memoryRequirements = {};
@@ -951,7 +949,7 @@ void buildAccelerationStructure(struct VulkanApplication* app, struct RayTraceAp
     .flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
     .update = VK_FALSE,
     .srcAccelerationStructure = VK_NULL_HANDLE,
-    .dstAccelerationStructure = rayTraceApp->accelerationStructure,
+    .dstAccelerationStructure = app->accelerationStructure,
     .geometryArrayOfPointers = VK_TRUE,
     .geometryCount = 1,
     .ppGeometries = geometries,
@@ -994,7 +992,7 @@ void buildAccelerationStructure(struct VulkanApplication* app, struct RayTraceAp
   vkFreeCommandBuffers(app->logicalDevice, app->commandPool, 1, &commandBuffer);
 }
 
-void createTopLevelAccelerationStructure(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
+void createTopLevelAccelerationStructure(struct VulkanApplication* app) {
   PFN_vkCreateAccelerationStructureKHR pvkCreateAccelerationStructureKHR = (PFN_vkCreateAccelerationStructureKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkCreateAccelerationStructureKHR");
   PFN_vkGetAccelerationStructureMemoryRequirementsKHR pvkGetAccelerationStructureMemoryRequirementsKHR = (PFN_vkGetAccelerationStructureMemoryRequirementsKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkGetAccelerationStructureMemoryRequirementsKHR");
   PFN_vkBindAccelerationStructureMemoryKHR pvkBindAccelerationStructureMemoryKHR = (PFN_vkBindAccelerationStructureMemoryKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkBindAccelerationStructureMemoryKHR");
@@ -1015,7 +1013,7 @@ void createTopLevelAccelerationStructure(struct VulkanApplication* app, struct R
   accelerationStructureCreateInfo.maxGeometryCount = 1;
   accelerationStructureCreateInfo.pGeometryInfos = &geometryInfos;
 
-  if (pvkCreateAccelerationStructureKHR(app->logicalDevice, &accelerationStructureCreateInfo, NULL, &rayTraceApp->topLevelAccelerationStructure) == VK_SUCCESS) {
+  if (pvkCreateAccelerationStructureKHR(app->logicalDevice, &accelerationStructureCreateInfo, NULL, &app->topLevelAccelerationStructure) == VK_SUCCESS) {
     printf("\033[22;32m%s\033[0m\n", "created acceleration structure");
   }
 
@@ -1024,7 +1022,7 @@ void createTopLevelAccelerationStructure(struct VulkanApplication* app, struct R
   VkAccelerationStructureMemoryRequirementsInfoKHR memoryRequirementsInfo = {};
   memoryRequirementsInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_KHR;
   memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_BUILD_SCRATCH_KHR;
-  memoryRequirementsInfo.accelerationStructure = rayTraceApp->topLevelAccelerationStructure;
+  memoryRequirementsInfo.accelerationStructure = app->topLevelAccelerationStructure;
   memoryRequirementsInfo.buildType = VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR;
 
   VkMemoryRequirements2 memoryRequirements = {};
@@ -1033,13 +1031,13 @@ void createTopLevelAccelerationStructure(struct VulkanApplication* app, struct R
 
   VkDeviceSize accelerationStructureSize = memoryRequirements.memoryRequirements.size;
 
-  createBuffer(app, accelerationStructureSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &rayTraceApp->topLevelAccelerationStructureBuffer, &rayTraceApp->topLevelAccelerationStructureBufferMemory);
+  createBuffer(app, accelerationStructureSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->topLevelAccelerationStructureBuffer, &app->topLevelAccelerationStructureBufferMemory);
 
   const VkBindAccelerationStructureMemoryInfoKHR accelerationStructureMemoryInfo = {
     .sType = VK_STRUCTURE_TYPE_BIND_ACCELERATION_STRUCTURE_MEMORY_INFO_KHR,
     .pNext = NULL,
-    .accelerationStructure = rayTraceApp->topLevelAccelerationStructure,
-    .memory = rayTraceApp->topLevelAccelerationStructureBufferMemory,
+    .accelerationStructure = app->topLevelAccelerationStructure,
+    .memory = app->topLevelAccelerationStructureBufferMemory,
     .memoryOffset = 0,
     .deviceIndexCount = 0,
     .pDeviceIndices = NULL
@@ -1056,7 +1054,7 @@ void createTopLevelAccelerationStructure(struct VulkanApplication* app, struct R
 
   VkAccelerationStructureDeviceAddressInfoKHR accelerationStructureDeviceAddressInfo = {};
   accelerationStructureDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
-  accelerationStructureDeviceAddressInfo.accelerationStructure = rayTraceApp->accelerationStructure;
+  accelerationStructureDeviceAddressInfo.accelerationStructure = app->accelerationStructure;
 
   VkDeviceAddress accelerationStructureDeviceAddress = pvkGetAccelerationStructureDeviceAddressKHR(app->logicalDevice, &accelerationStructureDeviceAddressInfo);
 
@@ -1118,7 +1116,7 @@ void createTopLevelAccelerationStructure(struct VulkanApplication* app, struct R
   VkAccelerationStructureMemoryRequirementsInfoKHR scratchMemoryRequirementInfo = {};
   scratchMemoryRequirementInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_KHR;
   scratchMemoryRequirementInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_BUILD_SCRATCH_KHR;
-  scratchMemoryRequirementInfo.accelerationStructure = rayTraceApp->topLevelAccelerationStructure;
+  scratchMemoryRequirementInfo.accelerationStructure = app->topLevelAccelerationStructure;
   scratchMemoryRequirementInfo.buildType = VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR;
 
   VkMemoryRequirements2 scratchMemoryRequirements = {};
@@ -1147,7 +1145,7 @@ void createTopLevelAccelerationStructure(struct VulkanApplication* app, struct R
     .flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
     .update = VK_FALSE,
     .srcAccelerationStructure = VK_NULL_HANDLE,
-    .dstAccelerationStructure = rayTraceApp->topLevelAccelerationStructure,
+    .dstAccelerationStructure = app->topLevelAccelerationStructure,
     .geometryArrayOfPointers = VK_TRUE,
     .geometryCount = 1,
     .ppGeometries = geometries,
@@ -1195,9 +1193,9 @@ void createUniformBuffer(struct VulkanApplication* app) {
   createBuffer(app, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &app->uniformBuffer, &app->uniformBufferMemory);
 }
 
-void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
+void createDescriptorSets(struct VulkanApplication* app) {
   VkDescriptorPool descriptorPool;
-  rayTraceApp->rayTraceDescriptorSetLayouts = (VkDescriptorSetLayout*)malloc(sizeof(VkDescriptorSetLayout) * 1);
+  app->rayTraceDescriptorSetLayouts = (VkDescriptorSetLayout*)malloc(sizeof(VkDescriptorSetLayout) * 1);
 
   VkDescriptorPoolSize descriptorPoolSizes[4];
   descriptorPoolSizes[0].type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
@@ -1259,7 +1257,7 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
     descriptorSetLayoutCreateInfo.bindingCount = 5;
     descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings;
     
-    if (vkCreateDescriptorSetLayout(app->logicalDevice, &descriptorSetLayoutCreateInfo, NULL, &rayTraceApp->rayTraceDescriptorSetLayouts[0]) == VK_SUCCESS) {
+    if (vkCreateDescriptorSetLayout(app->logicalDevice, &descriptorSetLayoutCreateInfo, NULL, &app->rayTraceDescriptorSetLayouts[0]) == VK_SUCCESS) {
       printf("\033[22;32m%s\033[0m\n", "created descriptor set layout");
     }
 
@@ -1267,9 +1265,9 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
     descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     descriptorSetAllocateInfo.descriptorPool = descriptorPool;
     descriptorSetAllocateInfo.descriptorSetCount = 1;
-    descriptorSetAllocateInfo.pSetLayouts = &rayTraceApp->rayTraceDescriptorSetLayouts[0];
+    descriptorSetAllocateInfo.pSetLayouts = &app->rayTraceDescriptorSetLayouts[0];
 
-    if (vkAllocateDescriptorSets(app->logicalDevice, &descriptorSetAllocateInfo, &rayTraceApp->rayTraceDescriptorSet) == VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(app->logicalDevice, &descriptorSetAllocateInfo, &app->rayTraceDescriptorSet) == VK_SUCCESS) {
       printf("\033[22;32m%s\033[0m\n", "allocated descriptor sets");
     }
 
@@ -1279,11 +1277,11 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
     descriptorSetAccelerationStructure.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
     descriptorSetAccelerationStructure.pNext = NULL;
     descriptorSetAccelerationStructure.accelerationStructureCount = 1;
-    descriptorSetAccelerationStructure.pAccelerationStructures = &rayTraceApp->topLevelAccelerationStructure;  
+    descriptorSetAccelerationStructure.pAccelerationStructures = &app->topLevelAccelerationStructure;  
 
     writeDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeDescriptorSets[0].pNext = &descriptorSetAccelerationStructure;
-    writeDescriptorSets[0].dstSet = rayTraceApp->rayTraceDescriptorSet;
+    writeDescriptorSets[0].dstSet = app->rayTraceDescriptorSet;
     writeDescriptorSets[0].dstBinding = 0;
     writeDescriptorSets[0].dstArrayElement = 0;
     writeDescriptorSets[0].descriptorCount = 1;
@@ -1299,7 +1297,7 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
 
     writeDescriptorSets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeDescriptorSets[1].pNext = NULL;
-    writeDescriptorSets[1].dstSet = rayTraceApp->rayTraceDescriptorSet;
+    writeDescriptorSets[1].dstSet = app->rayTraceDescriptorSet;
     writeDescriptorSets[1].dstBinding = 1;
     writeDescriptorSets[1].dstArrayElement = 0;
     writeDescriptorSets[1].descriptorCount = 1;
@@ -1315,7 +1313,7 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
 
     writeDescriptorSets[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeDescriptorSets[2].pNext = NULL;
-    writeDescriptorSets[2].dstSet = rayTraceApp->rayTraceDescriptorSet;
+    writeDescriptorSets[2].dstSet = app->rayTraceDescriptorSet;
     writeDescriptorSets[2].dstBinding = 2;
     writeDescriptorSets[2].dstArrayElement = 0;
     writeDescriptorSets[2].descriptorCount = 1;
@@ -1331,7 +1329,7 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
 
     writeDescriptorSets[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeDescriptorSets[3].pNext = NULL;
-    writeDescriptorSets[3].dstSet = rayTraceApp->rayTraceDescriptorSet;
+    writeDescriptorSets[3].dstSet = app->rayTraceDescriptorSet;
     writeDescriptorSets[3].dstBinding = 3;
     writeDescriptorSets[3].dstArrayElement = 0;
     writeDescriptorSets[3].descriptorCount = 1;
@@ -1342,12 +1340,12 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
 
     VkDescriptorImageInfo imageInfo = {};
     imageInfo.sampler = VK_DESCRIPTOR_TYPE_SAMPLER;
-    imageInfo.imageView = rayTraceApp->rayTraceImageView;
+    imageInfo.imageView = app->rayTraceImageView;
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
     writeDescriptorSets[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeDescriptorSets[4].pNext = NULL;
-    writeDescriptorSets[4].dstSet = rayTraceApp->rayTraceDescriptorSet;
+    writeDescriptorSets[4].dstSet = app->rayTraceDescriptorSet;
     writeDescriptorSets[4].dstBinding = 4;
     writeDescriptorSets[4].dstArrayElement = 0;
     writeDescriptorSets[4].descriptorCount = 1;
@@ -1378,7 +1376,7 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
     descriptorSetLayoutCreateInfo.bindingCount = 2;
     descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings;
     
-    if (vkCreateDescriptorSetLayout(app->logicalDevice, &descriptorSetLayoutCreateInfo, NULL, &rayTraceApp->rayTraceDescriptorSetLayouts[1]) == VK_SUCCESS) {
+    if (vkCreateDescriptorSetLayout(app->logicalDevice, &descriptorSetLayoutCreateInfo, NULL, &app->rayTraceDescriptorSetLayouts[1]) == VK_SUCCESS) {
       printf("\033[22;32m%s\033[0m\n", "created descriptor set layout");
     }
 
@@ -1386,9 +1384,9 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
     descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     descriptorSetAllocateInfo.descriptorPool = descriptorPool;
     descriptorSetAllocateInfo.descriptorSetCount = 1;
-    descriptorSetAllocateInfo.pSetLayouts = &rayTraceApp->rayTraceDescriptorSetLayouts[1];
+    descriptorSetAllocateInfo.pSetLayouts = &app->rayTraceDescriptorSetLayouts[1];
 
-    if (vkAllocateDescriptorSets(app->logicalDevice, &descriptorSetAllocateInfo, &rayTraceApp->materialDescriptorSet) == VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(app->logicalDevice, &descriptorSetAllocateInfo, &app->materialDescriptorSet) == VK_SUCCESS) {
       printf("\033[22;32m%s\033[0m\n", "allocated descriptor sets");
     }
 
@@ -1401,7 +1399,7 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
 
     writeDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeDescriptorSets[0].pNext = NULL;
-    writeDescriptorSets[0].dstSet = rayTraceApp->materialDescriptorSet;
+    writeDescriptorSets[0].dstSet = app->materialDescriptorSet;
     writeDescriptorSets[0].dstBinding = 0;
     writeDescriptorSets[0].dstArrayElement = 0;
     writeDescriptorSets[0].descriptorCount = 1;
@@ -1417,7 +1415,7 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
 
     writeDescriptorSets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeDescriptorSets[1].pNext = NULL;
-    writeDescriptorSets[1].dstSet = rayTraceApp->materialDescriptorSet;
+    writeDescriptorSets[1].dstSet = app->materialDescriptorSet;
     writeDescriptorSets[1].dstBinding = 1;
     writeDescriptorSets[1].dstArrayElement = 0;
     writeDescriptorSets[1].descriptorCount = 1;
@@ -1430,7 +1428,7 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
   }
 }
 
-void createGraphicsPipeline(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
+void createGraphicsPipeline(struct VulkanApplication* app) {
   FILE* vertexFile = fopen("bin/basic.vert.spv", "rb");
   fseek(vertexFile, 0, SEEK_END);
   uint32_t vertexFileSize = ftell(vertexFile);
@@ -1567,7 +1565,7 @@ void createGraphicsPipeline(struct VulkanApplication* app, struct RayTraceApplic
   VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
   pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   pipelineLayoutCreateInfo.setLayoutCount = 2;
-  pipelineLayoutCreateInfo.pSetLayouts = rayTraceApp->rayTraceDescriptorSetLayouts;
+  pipelineLayoutCreateInfo.pSetLayouts = app->rayTraceDescriptorSetLayouts;
 
   if (vkCreatePipelineLayout(app->logicalDevice, &pipelineLayoutCreateInfo, NULL, &app->pipelineLayout) == VK_SUCCESS) {
     printf("created pipeline layout\n");
@@ -1594,7 +1592,7 @@ void createGraphicsPipeline(struct VulkanApplication* app, struct RayTraceApplic
   }
 }
 
-void createCommandBuffers(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp, struct Scene* scene) {
+void createCommandBuffers(struct VulkanApplication* app, struct Scene* scene) {
   app->commandBuffers = (VkCommandBuffer*)malloc(sizeof(VkCommandBuffer) * app->imageCount);
   
   VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
@@ -1646,8 +1644,8 @@ void createCommandBuffers(struct VulkanApplication* app, struct RayTraceApplicat
 
     vkCmdBindVertexBuffers(app->commandBuffers[x], 0, 1, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(app->commandBuffers[x], app->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdBindDescriptorSets(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_GRAPHICS, app->pipelineLayout, 0, 1, &rayTraceApp->rayTraceDescriptorSet, 0, 0);    
-    vkCmdBindDescriptorSets(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_GRAPHICS, app->pipelineLayout, 1, 1, &rayTraceApp->materialDescriptorSet, 0, 0);
+    vkCmdBindDescriptorSets(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_GRAPHICS, app->pipelineLayout, 0, 1, &app->rayTraceDescriptorSet, 0, 0);    
+    vkCmdBindDescriptorSets(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_GRAPHICS, app->pipelineLayout, 1, 1, &app->materialDescriptorSet, 0, 0);
 
     vkCmdDrawIndexed(app->commandBuffers[x], scene->attributes.num_faces, 1, 0, 0, 0);
     vkCmdEndRenderPass(app->commandBuffers[x]);
@@ -1672,7 +1670,7 @@ void createCommandBuffers(struct VulkanApplication* app, struct RayTraceApplicat
       imageMemoryBarrier.pNext = NULL;
       imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
       imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-      imageMemoryBarrier.image = rayTraceApp->rayTraceImage;
+      imageMemoryBarrier.image = app->rayTraceImage;
       imageMemoryBarrier.subresourceRange = subresourceRange;
       imageMemoryBarrier.srcAccessMask = 0;
       imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -1704,7 +1702,7 @@ void createCommandBuffers(struct VulkanApplication* app, struct RayTraceApplicat
       imageCopy.dstOffset = offset;
       imageCopy.extent = extent;
   
-      vkCmdCopyImage(app->commandBuffers[x], app->swapchainImages[x], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, rayTraceApp->rayTraceImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageCopy);
+      vkCmdCopyImage(app->commandBuffers[x], app->swapchainImages[x], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, app->rayTraceImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageCopy);
     }
 
     { 
@@ -1741,7 +1739,7 @@ void createCommandBuffers(struct VulkanApplication* app, struct RayTraceApplicat
       imageMemoryBarrier.pNext = NULL;
       imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
       imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-      imageMemoryBarrier.image = rayTraceApp->rayTraceImage;
+      imageMemoryBarrier.image = app->rayTraceImage;
       imageMemoryBarrier.subresourceRange = subresourceRange;
       imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
       imageMemoryBarrier.dstAccessMask = 0;
@@ -1913,7 +1911,6 @@ void runMainLoop(struct VulkanApplication* app, struct Camera* camera) {
 
 int main(void) {
   struct VulkanApplication* app = (struct VulkanApplication*)malloc(sizeof(struct VulkanApplication));
-  struct RayTraceApplication* rayTraceApp = (struct RayTraceApplication*)malloc(sizeof(struct RayTraceApplication));
   struct Scene* scene = (struct Scene*)malloc(sizeof(struct Scene));
 
   struct Camera* camera = &(struct Camera) {
@@ -1946,18 +1943,18 @@ int main(void) {
   createVertexBuffer(app, scene);
   createIndexBuffer(app, scene);
   createMaterialBuffers(app, scene);
-  createTextures(app, rayTraceApp);
+  createTextures(app);
 
-  createAccelerationStructure(app, rayTraceApp, scene);
-  bindAccelerationStructure(app, rayTraceApp);
-  buildAccelerationStructure(app, rayTraceApp, scene);
-  createTopLevelAccelerationStructure(app, rayTraceApp);
+  createAccelerationStructure(app, scene);
+  bindAccelerationStructure(app);
+  buildAccelerationStructure(app, scene);
+  createTopLevelAccelerationStructure(app);
 
   createUniformBuffer(app);
-  createDescriptorSets(app, rayTraceApp);
+  createDescriptorSets(app);
 
-  createGraphicsPipeline(app, rayTraceApp);
-  createCommandBuffers(app, rayTraceApp, scene);
+  createGraphicsPipeline(app);
+  createCommandBuffers(app, scene);
   createSynchronizationObjects(app);
 
   runMainLoop(app, camera);
