@@ -496,7 +496,7 @@ void createSwapchain(struct VulkanApplication* app) {
   swapchainCreateInfo.imageColorSpace = surfaceFormat.colorSpace;
   swapchainCreateInfo.imageExtent = extent;
   swapchainCreateInfo.imageArrayLayers = 1;
-  swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+  swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
   if (app->graphicsQueueIndex != app->presentQueueIndex) {
     uint32_t queueFamilyIndices[2] = {app->graphicsQueueIndex, app->presentQueueIndex};
@@ -1159,7 +1159,7 @@ void createMaterialBuffers(struct VulkanApplication* app, struct Scene* scene) {
 }
 
 void createTextures(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
-  createImage(app, 800, 600, app->swapchainImageFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_STORAGE_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &rayTraceApp->rayTraceImage, &rayTraceApp->rayTraceImageMemory);
+  createImage(app, 800, 600, app->swapchainImageFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &rayTraceApp->rayTraceImage, &rayTraceApp->rayTraceImageMemory);
 
   VkImageSubresourceRange subresourceRange = {};
   subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1240,10 +1240,6 @@ void createCommandBuffers(struct VulkanApplication* app, struct RayTraceApplicat
     VkCommandBufferBeginInfo commandBufferBeginCreateInfo = {};
     commandBufferBeginCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-    if (vkBeginCommandBuffer(app->commandBuffers[x], &commandBufferBeginCreateInfo) == VK_SUCCESS) {
-      printf("begin recording command buffer for image #%d\n", x);
-    }
-      
     VkRenderPassBeginInfo renderPassBeginInfo = {};
     renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassBeginInfo.renderPass = app->renderPass;
@@ -1260,11 +1256,23 @@ void createCommandBuffers(struct VulkanApplication* app, struct RayTraceApplicat
     renderPassBeginInfo.clearValueCount = 2;
     renderPassBeginInfo.pClearValues = clearValues;
 
+    VkBuffer vertexBuffers[1] = {app->vertexPositionBuffer};
+    VkDeviceSize offsets[1] = {0};
+
+    VkImageSubresourceRange subresourceRange = {};
+    subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    subresourceRange.baseMipLevel = 0;
+    subresourceRange.levelCount = 1;
+    subresourceRange.baseArrayLayer = 0;
+    subresourceRange.layerCount = 1;
+
+    if (vkBeginCommandBuffer(app->commandBuffers[x], &commandBufferBeginCreateInfo) == VK_SUCCESS) {
+      printf("begin recording command buffer for image #%d\n", x);
+    }
+
     vkCmdBeginRenderPass(app->commandBuffers[x], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_GRAPHICS, app->graphicsPipeline);
 
-    VkBuffer vertexBuffers[1] = {app->vertexPositionBuffer};
-    VkDeviceSize offsets[1] = {0};
     vkCmdBindVertexBuffers(app->commandBuffers[x], 0, 1, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(app->commandBuffers[x], app->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdBindDescriptorSets(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_GRAPHICS, app->pipelineLayout, 0, 1, &rayTraceApp->rayTraceDescriptorSet, 0, 0);    
@@ -1272,6 +1280,103 @@ void createCommandBuffers(struct VulkanApplication* app, struct RayTraceApplicat
 
     vkCmdDrawIndexed(app->commandBuffers[x], scene->attributes.num_faces, 1, 0, 0, 0);
     vkCmdEndRenderPass(app->commandBuffers[x]);
+
+    { 
+      VkImageMemoryBarrier imageMemoryBarrier = {};
+      imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+      imageMemoryBarrier.pNext = NULL;
+      imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+      imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+      imageMemoryBarrier.image = app->swapchainImages[x];
+      imageMemoryBarrier.subresourceRange = subresourceRange;
+      imageMemoryBarrier.srcAccessMask = 0;
+      imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+      vkCmdPipelineBarrier(app->commandBuffers[x], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &imageMemoryBarrier);
+    }
+
+    { 
+      VkImageMemoryBarrier imageMemoryBarrier = {};
+      imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+      imageMemoryBarrier.pNext = NULL;
+      imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+      imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+      imageMemoryBarrier.image = rayTraceApp->rayTraceImage;
+      imageMemoryBarrier.subresourceRange = subresourceRange;
+      imageMemoryBarrier.srcAccessMask = 0;
+      imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+      vkCmdPipelineBarrier(app->commandBuffers[x], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &imageMemoryBarrier);
+    }
+
+    {
+      VkImageSubresourceLayers subresourceLayers = {};
+      subresourceLayers.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+      subresourceLayers.mipLevel = 0;
+      subresourceLayers.baseArrayLayer = 0;
+      subresourceLayers.layerCount = 1;
+
+      VkOffset3D offset = {};
+      offset.x = 0;
+      offset.y = 0;
+      offset.z = 0;
+
+      VkExtent3D extent = {};
+      extent.width = 800;
+      extent.height = 600;
+      extent.depth = 1;
+
+      VkImageCopy imageCopy = {};
+      imageCopy.srcSubresource = subresourceLayers;
+      imageCopy.srcOffset = offset;
+      imageCopy.dstSubresource = subresourceLayers;
+      imageCopy.dstOffset = offset;
+      imageCopy.extent = extent;
+  
+      vkCmdCopyImage(app->commandBuffers[x], app->swapchainImages[x], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, rayTraceApp->rayTraceImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageCopy);
+    }
+
+    { 
+      VkImageSubresourceRange subresourceRange = {};
+      subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+      subresourceRange.baseMipLevel = 0;
+      subresourceRange.levelCount = 1;
+      subresourceRange.baseArrayLayer = 0;
+      subresourceRange.layerCount = 1;
+
+      VkImageMemoryBarrier imageMemoryBarrier = {};
+      imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+      imageMemoryBarrier.pNext = NULL;
+      imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+      imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+      imageMemoryBarrier.image = app->swapchainImages[x];
+      imageMemoryBarrier.subresourceRange = subresourceRange;
+      imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+      imageMemoryBarrier.dstAccessMask = 0;
+
+      vkCmdPipelineBarrier(app->commandBuffers[x], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &imageMemoryBarrier);
+    }
+
+    { 
+      VkImageSubresourceRange subresourceRange = {};
+      subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+      subresourceRange.baseMipLevel = 0;
+      subresourceRange.levelCount = 1;
+      subresourceRange.baseArrayLayer = 0;
+      subresourceRange.layerCount = 1;
+
+      VkImageMemoryBarrier imageMemoryBarrier = {};
+      imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+      imageMemoryBarrier.pNext = NULL;
+      imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+      imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+      imageMemoryBarrier.image = rayTraceApp->rayTraceImage;
+      imageMemoryBarrier.subresourceRange = subresourceRange;
+      imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+      imageMemoryBarrier.dstAccessMask = 0;
+
+      vkCmdPipelineBarrier(app->commandBuffers[x], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &imageMemoryBarrier);
+    }
 
     if (vkEndCommandBuffer(app->commandBuffers[x]) == VK_SUCCESS) {
       printf("end recording command buffer for image #%d\n", x);

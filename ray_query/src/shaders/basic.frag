@@ -86,6 +86,4 @@ void main() {
     outColor += previousColor;
     outColor /= (camera.frameCount + 1);
   }
-
-  imageStore(image, ivec2(gl_FragCoord.xy), outColor);
 }
