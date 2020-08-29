@@ -608,7 +608,7 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
   VkDescriptorPool descriptorPool;
   rayTraceApp->rayTraceDescriptorSetLayouts = (VkDescriptorSetLayout*)malloc(sizeof(VkDescriptorSetLayout) * 1);
 
-  VkDescriptorPoolSize descriptorPoolSizes[2];
+  VkDescriptorPoolSize descriptorPoolSizes[3];
   descriptorPoolSizes[0].type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
   descriptorPoolSizes[0].descriptorCount = 1;
 
