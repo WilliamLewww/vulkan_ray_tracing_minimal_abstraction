@@ -31,6 +31,10 @@ layout(binding = 4, set = 0, rgba32f) uniform image2D image;
 layout(binding = 0, set = 1) buffer MaterialIndexBuffer { uint data[]; } materialIndexBuffer;
 layout(binding = 1, set = 1) buffer MaterialBuffer { Material data[]; } materialBuffer;
 
+float random(float u, float v) {
+  return fract(sin(dot(vec2(u, v), vec2(12.9898, 78.233))) * 43758.5453);
+}
+
 void main() {
   ivec3 indices = ivec3(indexBuffer.data[3 * gl_PrimitiveID + 0], indexBuffer.data[3 * gl_PrimitiveID + 1], indexBuffer.data[3 * gl_PrimitiveID + 2]);
 
@@ -51,7 +55,7 @@ void main() {
     vec3 lightVertexB = vec3(vertexBuffer.data[3 * lightIndices.y + 0], vertexBuffer.data[3 * lightIndices.y + 1], vertexBuffer.data[3 * lightIndices.y + 2]);
     vec3 lightVertexC = vec3(vertexBuffer.data[3 * lightIndices.z + 0], vertexBuffer.data[3 * lightIndices.z + 1], vertexBuffer.data[3 * lightIndices.z + 2]);
 
-    vec2 uv = vec2(0.5, 0.5);
+    vec2 uv = vec2(random(gl_FragCoord.x, camera.frameCount), random(gl_FragCoord.y, camera.frameCount));
     if (uv.x + uv.y > 1.0f) {
       uv.x = 1.0f - uv.x;
       uv.y = 1.0f - uv.y;
