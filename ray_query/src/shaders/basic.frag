@@ -75,7 +75,17 @@ void main() {
       outColor = vec4(surfaceColor * lightColor * dot(geometricNormal, positionToLightDirection), 1);
     }
     else {
-      outColor = vec4(0.0, 0.0, 0.0, 0.0);
+      outColor = vec4(0.0, 0.0, 0.0, 1.0);
     }
   }
+
+  if (camera.frameCount > 0) {
+    vec4 previousColor = imageLoad(image, ivec2(gl_FragCoord.xy));
+    previousColor *= camera.frameCount;
+
+    outColor += previousColor;
+    outColor /= (camera.frameCount + 1);
+  }
+
+  imageStore(image, ivec2(gl_FragCoord.xy), outColor);
 }
