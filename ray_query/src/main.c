@@ -392,7 +392,7 @@ void createLogicalConnection(struct VulkanApplication* app) {
     }
   }
   
-  uint32_t deviceEnabledExtensionCount = 8;
+  uint32_t deviceEnabledExtensionCount = 9;
   const char** deviceEnabledExtensionNames = (const char**)malloc(sizeof(const char*) * deviceEnabledExtensionCount);
   deviceEnabledExtensionNames[0] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;  
   deviceEnabledExtensionNames[1] = "VK_KHR_ray_tracing";  
@@ -402,6 +402,7 @@ void createLogicalConnection(struct VulkanApplication* app) {
   deviceEnabledExtensionNames[5] = "VK_KHR_deferred_host_operations";
   deviceEnabledExtensionNames[6] = "VK_KHR_pipeline_library";
   deviceEnabledExtensionNames[7] = "VK_KHR_maintenance3";
+  deviceEnabledExtensionNames[8] = "VK_KHR_maintenance1";
   
   float queuePriority = 1.0f;
   uint32_t deviceQueueCreateInfoCount = 3;
@@ -922,9 +923,9 @@ void createGraphicsPipeline(struct VulkanApplication* app, struct RayTraceApplic
  
   VkViewport viewport = {};
   viewport.x = 0.0f;
-  viewport.y = 0.0f;
+  viewport.y = (float)app->swapchainExtent.height;
   viewport.width = (float)app->swapchainExtent.width;
-  viewport.height = (float)app->swapchainExtent.height;
+  viewport.height = -(float)app->swapchainExtent.height;
   viewport.minDepth = 0.0f;
   viewport.maxDepth = 1.0f;
 
@@ -947,7 +948,7 @@ void createGraphicsPipeline(struct VulkanApplication* app, struct RayTraceApplic
   rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
   rasterizationStateCreateInfo.lineWidth = 1.0f;
   rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-  rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+  rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
   rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
 
   VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo = {};
