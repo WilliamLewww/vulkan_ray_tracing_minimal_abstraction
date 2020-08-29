@@ -619,7 +619,7 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
   descriptorPoolSizes[1].descriptorCount = 1;
 
   descriptorPoolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-  descriptorPoolSizes[2].descriptorCount = 2;
+  descriptorPoolSizes[2].descriptorCount = 4;
 
   VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
   descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -645,9 +645,21 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
     descriptorSetLayoutBindings[1].pImmutableSamplers = NULL;
     descriptorSetLayoutBindings[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
+    descriptorSetLayoutBindings[2].binding = 2;
+    descriptorSetLayoutBindings[2].descriptorCount = 1;
+    descriptorSetLayoutBindings[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorSetLayoutBindings[2].pImmutableSamplers = NULL;
+    descriptorSetLayoutBindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    descriptorSetLayoutBindings[3].binding = 3;
+    descriptorSetLayoutBindings[3].descriptorCount = 1;
+    descriptorSetLayoutBindings[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorSetLayoutBindings[3].pImmutableSamplers = NULL;
+    descriptorSetLayoutBindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
     descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    descriptorSetLayoutCreateInfo.bindingCount = 2;
+    descriptorSetLayoutCreateInfo.bindingCount = 4;
     descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings;
     
     if (vkCreateDescriptorSetLayout(app->logicalDevice, &descriptorSetLayoutCreateInfo, NULL, &rayTraceApp->rayTraceDescriptorSetLayouts[0]) == VK_SUCCESS) {
@@ -664,7 +676,7 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
       printf("\033[22;32m%s\033[0m\n", "allocated descriptor sets");
     }
 
-    VkWriteDescriptorSet writeDescriptorSets[2];
+    VkWriteDescriptorSet writeDescriptorSets[4];
 
     VkWriteDescriptorSetAccelerationStructureKHR descriptorSetAccelerationStructure = {};
     descriptorSetAccelerationStructure.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
@@ -699,7 +711,39 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
     writeDescriptorSets[1].pBufferInfo = &bufferInfo;
     writeDescriptorSets[1].pTexelBufferView = NULL;
 
-    vkUpdateDescriptorSets(app->logicalDevice, 2, writeDescriptorSets, 0, NULL);
+    VkDescriptorBufferInfo indexBufferInfo = {};
+    indexBufferInfo.buffer = app->indexBuffer;
+    indexBufferInfo.offset = 0;
+    indexBufferInfo.range = VK_WHOLE_SIZE;
+
+    writeDescriptorSets[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeDescriptorSets[2].pNext = NULL;
+    writeDescriptorSets[2].dstSet = rayTraceApp->rayTraceDescriptorSet;
+    writeDescriptorSets[2].dstBinding = 2;
+    writeDescriptorSets[2].dstArrayElement = 0;
+    writeDescriptorSets[2].descriptorCount = 1;
+    writeDescriptorSets[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writeDescriptorSets[2].pImageInfo = NULL;
+    writeDescriptorSets[2].pBufferInfo = &indexBufferInfo;
+    writeDescriptorSets[2].pTexelBufferView = NULL;
+
+    VkDescriptorBufferInfo vertexBufferInfo = {};
+    vertexBufferInfo.buffer = app->vertexPositionBuffer;
+    vertexBufferInfo.offset = 0;
+    vertexBufferInfo.range = VK_WHOLE_SIZE;
+
+    writeDescriptorSets[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeDescriptorSets[3].pNext = NULL;
+    writeDescriptorSets[3].dstSet = rayTraceApp->rayTraceDescriptorSet;
+    writeDescriptorSets[3].dstBinding = 3;
+    writeDescriptorSets[3].dstArrayElement = 0;
+    writeDescriptorSets[3].descriptorCount = 1;
+    writeDescriptorSets[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writeDescriptorSets[3].pImageInfo = NULL;
+    writeDescriptorSets[3].pBufferInfo = &vertexBufferInfo;
+    writeDescriptorSets[3].pTexelBufferView = NULL;
+
+    vkUpdateDescriptorSets(app->logicalDevice, 4, writeDescriptorSets, 0, NULL);
   }
 
   {
