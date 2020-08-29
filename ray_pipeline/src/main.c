@@ -626,6 +626,66 @@ void createMaterialBuffers(struct VulkanApplication* app, struct Scene* scene) {
   free(materials);
 }
 
+void createTextures(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
+  createImage(app, 800, 600, app->swapchainImageFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &rayTraceApp->rayTraceImage, &rayTraceApp->rayTraceImageMemory);
+
+  VkImageSubresourceRange subresourceRange = {};
+  subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  subresourceRange.baseMipLevel = 0;
+  subresourceRange.levelCount = 1;
+  subresourceRange.baseArrayLayer = 0;
+  subresourceRange.layerCount = 1;
+
+  VkImageViewCreateInfo imageViewCreateInfo = {};
+  imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+  imageViewCreateInfo.pNext = NULL;
+  imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+  imageViewCreateInfo.format = app->swapchainImageFormat;
+  imageViewCreateInfo.subresourceRange = subresourceRange;
+  imageViewCreateInfo.image = rayTraceApp->rayTraceImage;
+
+  if (vkCreateImageView(app->logicalDevice, &imageViewCreateInfo, NULL, &rayTraceApp->rayTraceImageView) == VK_SUCCESS) {
+    printf("created image view\n");
+  }
+
+  VkImageMemoryBarrier imageMemoryBarrier = {};
+  imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  imageMemoryBarrier.pNext = NULL;
+  imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+  imageMemoryBarrier.image = rayTraceApp->rayTraceImage;
+  imageMemoryBarrier.subresourceRange = subresourceRange;
+  imageMemoryBarrier.srcAccessMask = 0;
+  imageMemoryBarrier.dstAccessMask = 0;
+
+  VkCommandBufferAllocateInfo bufferAllocateInfo = {};
+  bufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  bufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  bufferAllocateInfo.commandPool = app->commandPool;
+  bufferAllocateInfo.commandBufferCount = 1;
+
+  VkCommandBuffer commandBuffer;
+  vkAllocateCommandBuffers(app->logicalDevice, &bufferAllocateInfo, &commandBuffer);
+  
+  VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+  commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+  
+  vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
+  vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &imageMemoryBarrier);
+  vkEndCommandBuffer(commandBuffer);
+
+  VkSubmitInfo submitInfo = {};
+  submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  submitInfo.commandBufferCount = 1;
+  submitInfo.pCommandBuffers = &commandBuffer;
+
+  vkQueueSubmit(app->computeQueue, 1, &submitInfo, VK_NULL_HANDLE);
+  vkQueueWaitIdle(app->computeQueue);
+
+  vkFreeCommandBuffers(app->logicalDevice, app->commandPool, 1, &commandBuffer);
+}
+
 void createSynchronizationObjects(struct VulkanApplication* app) {
   app->imageAvailableSemaphores = (VkSemaphore*)malloc(sizeof(VkSemaphore) * MAX_FRAMES_IN_FLIGHT);
   app->renderFinishedSemaphores = (VkSemaphore*)malloc(sizeof(VkSemaphore) * MAX_FRAMES_IN_FLIGHT);
@@ -1021,67 +1081,7 @@ void createTopLevelAccelerationStructure(struct VulkanApplication* app, struct R
   vkFreeCommandBuffers(app->logicalDevice, app->commandPool, 1, &commandBuffer);
 }
 
-void createRayTraceTextures(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
-  createImage(app, 800, 600, app->swapchainImageFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &rayTraceApp->rayTraceImage, &rayTraceApp->rayTraceImageMemory);
-
-  VkImageSubresourceRange subresourceRange = {};
-  subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  subresourceRange.baseMipLevel = 0;
-  subresourceRange.levelCount = 1;
-  subresourceRange.baseArrayLayer = 0;
-  subresourceRange.layerCount = 1;
-
-  VkImageViewCreateInfo imageViewCreateInfo = {};
-  imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-  imageViewCreateInfo.pNext = NULL;
-  imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-  imageViewCreateInfo.format = app->swapchainImageFormat;
-  imageViewCreateInfo.subresourceRange = subresourceRange;
-  imageViewCreateInfo.image = rayTraceApp->rayTraceImage;
-
-  if (vkCreateImageView(app->logicalDevice, &imageViewCreateInfo, NULL, &rayTraceApp->rayTraceImageView) == VK_SUCCESS) {
-    printf("created image view\n");
-  }
-
-  VkImageMemoryBarrier imageMemoryBarrier = {};
-  imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-  imageMemoryBarrier.pNext = NULL;
-  imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-  imageMemoryBarrier.image = rayTraceApp->rayTraceImage;
-  imageMemoryBarrier.subresourceRange = subresourceRange;
-  imageMemoryBarrier.srcAccessMask = 0;
-  imageMemoryBarrier.dstAccessMask = 0;
-
-  VkCommandBufferAllocateInfo bufferAllocateInfo = {};
-  bufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  bufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  bufferAllocateInfo.commandPool = app->commandPool;
-  bufferAllocateInfo.commandBufferCount = 1;
-
-  VkCommandBuffer commandBuffer;
-  vkAllocateCommandBuffers(app->logicalDevice, &bufferAllocateInfo, &commandBuffer);
-  
-  VkCommandBufferBeginInfo commandBufferBeginInfo = {};
-  commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-  commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-  
-  vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
-  vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &imageMemoryBarrier);
-  vkEndCommandBuffer(commandBuffer);
-
-  VkSubmitInfo submitInfo = {};
-  submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-  submitInfo.commandBufferCount = 1;
-  submitInfo.pCommandBuffers = &commandBuffer;
-
-  vkQueueSubmit(app->computeQueue, 1, &submitInfo, VK_NULL_HANDLE);
-  vkQueueWaitIdle(app->computeQueue);
-
-  vkFreeCommandBuffers(app->logicalDevice, app->commandPool, 1, &commandBuffer);
-}
-
-void createRayTraceUniformBuffer(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
+void createUniformBuffers(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
   VkDeviceSize bufferSize = sizeof(struct Camera);
   createBuffer(app, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &rayTraceApp->uniformBuffer, &rayTraceApp->uniformBufferMemory);
 }
@@ -1093,7 +1093,7 @@ void updateRayTraceUniformBuffer(struct VulkanApplication* app, struct RayTraceA
   vkUnmapMemory(app->logicalDevice, rayTraceApp->uniformBufferMemory);
 }
 
-void createRayTraceDescriptorSets(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
+void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
   VkDescriptorPool descriptorPool;
   rayTraceApp->rayTraceDescriptorSetLayouts = (VkDescriptorSetLayout*)malloc(sizeof(VkDescriptorSetLayout) * 2);
 
@@ -1543,7 +1543,7 @@ void createShaderBindingTable(struct VulkanApplication* app, struct RayTraceAppl
   free(shaderHandleStorage);
 }
 
-void createRayTraceCommandBuffers(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
+void createCommandBuffers(struct VulkanApplication* app, struct RayTraceApplication* rayTraceApp) {
   PFN_vkCmdTraceRaysKHR pvkCmdTraceRaysKHR = (PFN_vkCmdTraceRaysKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkCmdTraceRaysKHR");
 
   rayTraceApp->rayTraceCommandBuffers = (VkCommandBuffer*)malloc(sizeof(VkCommandBuffer) * app->imageCount);
@@ -1868,19 +1868,19 @@ int main(void) {
   createIndexBuffer(app, scene);
   createVertexBuffer(app, scene);
   createMaterialBuffers(app, scene);
-  createRayTraceTextures(app, rayTraceApp);
+  createTextures(app, rayTraceApp);
 
   createAccelerationStructure(app, rayTraceApp, scene);
   bindAccelerationStructure(app, rayTraceApp);
   buildAccelerationStructure(app, rayTraceApp, scene);
   createTopLevelAccelerationStructure(app, rayTraceApp);
-  
-  createRayTraceUniformBuffer(app, rayTraceApp);
-  createRayTraceDescriptorSets(app, rayTraceApp);
+
+  createUniformBuffers(app, rayTraceApp);
+  createDescriptorSets(app, rayTraceApp);
 
   createRayTracePipeline(app, rayTraceApp);
   createShaderBindingTable(app, rayTraceApp);
-  createRayTraceCommandBuffers(app, rayTraceApp);
+  createCommandBuffers(app, rayTraceApp);
 
   createSynchronizationObjects(app);
 
