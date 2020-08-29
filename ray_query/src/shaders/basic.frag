@@ -11,7 +11,6 @@ struct Material {
 };
 
 layout(location = 0) in vec3 interpolatedPosition;
-layout(location = 1) in vec3 interpolatedNormal;
 
 layout(location = 0) out vec4 outColor;
 

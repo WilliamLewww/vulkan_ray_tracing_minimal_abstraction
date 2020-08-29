@@ -2,10 +2,8 @@
 #extension GL_ARB_separate_shader_objects : enable
 
 layout(location = 0) in vec3 inPosition;
-layout(location = 1) in vec3 inNormal;
 
 layout(location = 0) out vec3 interpolatedPosition;
-layout(location = 1) out vec3 interpolatedNormal;
 
 layout(binding = 1, set = 0) uniform Camera {
   vec4 position;
@@ -41,5 +39,4 @@ void main() {
   gl_Position = projectionMatrix * viewMatrix * vec4(inPosition, 1.0);
 
   interpolatedPosition = inPosition;
-  interpolatedNormal = inNormal;
 }
