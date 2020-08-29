@@ -1868,13 +1868,13 @@ int main(void) {
   createIndexBuffer(app, scene);
   createVertexBuffer(app, scene);
   createMaterialBuffers(app, scene);
+  createRayTraceTextures(app, rayTraceApp);
 
   createAccelerationStructure(app, rayTraceApp, scene);
   bindAccelerationStructure(app, rayTraceApp);
   buildAccelerationStructure(app, rayTraceApp, scene);
-
   createTopLevelAccelerationStructure(app, rayTraceApp);
-  createRayTraceTextures(app, rayTraceApp);
+  
   createRayTraceUniformBuffer(app, rayTraceApp);
   createRayTraceDescriptorSets(app, rayTraceApp);
 

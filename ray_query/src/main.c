@@ -1947,16 +1947,16 @@ int main(void) {
   createIndexBuffer(app, scene);
   createMaterialBuffers(app, scene);
   createTextures(app, rayTraceApp);
-  createUniformBuffers(app);
 
   createAccelerationStructure(app, rayTraceApp, scene);
   bindAccelerationStructure(app, rayTraceApp);
   buildAccelerationStructure(app, rayTraceApp, scene);
   createTopLevelAccelerationStructure(app, rayTraceApp);
 
+  createUniformBuffers(app);
   createDescriptorSets(app, rayTraceApp);
-  createGraphicsPipeline(app, rayTraceApp);
 
+  createGraphicsPipeline(app, rayTraceApp);
   createCommandBuffers(app, rayTraceApp, scene);
   createSynchronizationObjects(app);
 
