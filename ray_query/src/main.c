@@ -629,7 +629,7 @@ void createDescriptorSets(struct VulkanApplication* app, struct RayTraceApplicat
   }
 
   {
-    VkDescriptorSetLayoutBinding descriptorSetLayoutBindings[2];
+    VkDescriptorSetLayoutBinding descriptorSetLayoutBindings[4];
     descriptorSetLayoutBindings[0].binding = 0;
     descriptorSetLayoutBindings[0].descriptorCount = 1;
     descriptorSetLayoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
