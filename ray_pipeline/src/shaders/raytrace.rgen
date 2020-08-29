@@ -37,7 +37,7 @@ void main() {
   payload.indirectColor = vec3(0.0, 0.0, 0.0);
   payload.rayDepth = 0;
 
-  for (int x = 0; x < 3; x++) {
+  for (int x = 0; x < 4; x++) {
     traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, payload.rayOrigin, 0.001, payload.rayDirection, 10000.0, 0);
   }
 
