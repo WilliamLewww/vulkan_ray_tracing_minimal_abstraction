@@ -36,6 +36,9 @@ float random(float u, float v) {
 }
 
 void main() {
+  vec3 directColor = vec3(0.0, 0.0, 0.0);
+  vec3 indirectColor = vec3(0.0, 0.0, 0.0);
+
   ivec3 indices = ivec3(indexBuffer.data[3 * gl_PrimitiveID + 0], indexBuffer.data[3 * gl_PrimitiveID + 1], indexBuffer.data[3 * gl_PrimitiveID + 2]);
 
   vec3 vertexA = vec3(vertexBuffer.data[3 * indices.x + 0], vertexBuffer.data[3 * indices.x + 1], vertexBuffer.data[3 * indices.x + 2]);
@@ -76,18 +79,22 @@ void main() {
     while (rayQueryProceedEXT(rayQuery));
 
     if (rayQueryGetIntersectionTypeEXT(rayQuery, true) == gl_RayQueryCommittedIntersectionNoneEXT) {
-      outColor = vec4(surfaceColor * lightColor * dot(geometricNormal, positionToLightDirection), 1);
+      directColor = vec3(surfaceColor * lightColor * dot(geometricNormal, positionToLightDirection));
     }
     else {
-      outColor = vec4(0.0, 0.0, 0.0, 1.0);
+      directColor = vec3(0.0, 0.0, 0.0);
     }
   }
+
+  vec4 color = vec4(directColor + (indirectColor / 3), 1.0);
 
   if (camera.frameCount > 0) {
     vec4 previousColor = imageLoad(image, ivec2(gl_FragCoord.xy));
     previousColor *= camera.frameCount;
 
-    outColor += previousColor;
-    outColor /= (camera.frameCount + 1);
+    color += previousColor;
+    color /= (camera.frameCount + 1);
   }
+
+  outColor = color;
 }
