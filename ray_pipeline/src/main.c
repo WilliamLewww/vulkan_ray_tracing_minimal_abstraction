@@ -114,8 +114,9 @@ struct VulkanApplication {
   VkPipelineLayout rayTracePipelineLayout;
 
   VkBuffer shaderBindingTableBuffer;
+  VkDeviceMemory shaderBindingTableBufferMemory;
 
-  VkCommandBuffer* rayTraceCommandBuffers;
+  VkCommandBuffer* commandBuffers;
 };
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {
@@ -1471,6 +1472,11 @@ void createRayTracePipeline(struct VulkanApplication* app) {
     printf("created ray trace pipeline\n");
   }
 
+  vkDestroyShaderModule(app->logicalDevice, rgenShaderModule, NULL);
+  vkDestroyShaderModule(app->logicalDevice, rmissShaderModule, NULL);
+  vkDestroyShaderModule(app->logicalDevice, rmissShadowShaderModule, NULL);
+  vkDestroyShaderModule(app->logicalDevice, rchitShaderModule, NULL);
+
   free(rgenFileBuffer);
   free(rmissFileBuffer);
   free(rmissShadowFileBuffer);
@@ -1490,8 +1496,8 @@ void createShaderBindingTable(struct VulkanApplication* app) {
   
   VkDeviceSize shaderBindingTableSize = app->rayTracingProperties.shaderGroupHandleSize * 4;
 
-  VkDeviceMemory shaderBindingTableBufferMemory;
-  createBuffer(app, shaderBindingTableSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_KHR, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &app->shaderBindingTableBuffer, &shaderBindingTableBufferMemory);
+  app->shaderBindingTableBufferMemory;
+  createBuffer(app, shaderBindingTableSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_KHR, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &app->shaderBindingTableBuffer, &app->shaderBindingTableBufferMemory);
 
   void* shaderHandleStorage = (void*)malloc(sizeof(uint8_t) * shaderBindingTableSize);
   if (pvkGetRayTracingShaderGroupHandlesKHR(app->logicalDevice, app->rayTracePipeline, 0, 4, shaderBindingTableSize, shaderHandleStorage) == VK_SUCCESS) {
@@ -1499,12 +1505,12 @@ void createShaderBindingTable(struct VulkanApplication* app) {
   }
 
   void* data;
-  vkMapMemory(app->logicalDevice, shaderBindingTableBufferMemory, 0, shaderBindingTableSize, 0, &data);
+  vkMapMemory(app->logicalDevice, app->shaderBindingTableBufferMemory, 0, shaderBindingTableSize, 0, &data);
   for (int x = 0; x < 4; x++) {
     memcpy(data, (uint8_t*)shaderHandleStorage + x * app->rayTracingProperties.shaderGroupHandleSize, app->rayTracingProperties.shaderGroupHandleSize);
     data += app->rayTracingProperties.shaderGroupBaseAlignment;
   }
-  vkUnmapMemory(app->logicalDevice, shaderBindingTableBufferMemory);
+  vkUnmapMemory(app->logicalDevice, app->shaderBindingTableBufferMemory);
 
   free(shaderHandleStorage);
 }
@@ -1512,7 +1518,7 @@ void createShaderBindingTable(struct VulkanApplication* app) {
 void createCommandBuffers(struct VulkanApplication* app) {
   PFN_vkCmdTraceRaysKHR pvkCmdTraceRaysKHR = (PFN_vkCmdTraceRaysKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkCmdTraceRaysKHR");
 
-  app->rayTraceCommandBuffers = (VkCommandBuffer*)malloc(sizeof(VkCommandBuffer) * app->imageCount);
+  app->commandBuffers = (VkCommandBuffer*)malloc(sizeof(VkCommandBuffer) * app->imageCount);
   
   VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
   commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -1520,7 +1526,7 @@ void createCommandBuffers(struct VulkanApplication* app) {
   commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   commandBufferAllocateInfo.commandBufferCount = app->imageCount;
 
-  if (vkAllocateCommandBuffers(app->logicalDevice, &commandBufferAllocateInfo, app->rayTraceCommandBuffers) == VK_SUCCESS) {
+  if (vkAllocateCommandBuffers(app->logicalDevice, &commandBufferAllocateInfo, app->commandBuffers) == VK_SUCCESS) {
     printf("\033[22;32m%s\033[0m\n", "allocated command buffers");
   }
 
@@ -1565,15 +1571,15 @@ void createCommandBuffers(struct VulkanApplication* app) {
     subresourceRange.baseArrayLayer = 0;
     subresourceRange.layerCount = 1;
 
-    if (vkBeginCommandBuffer(app->rayTraceCommandBuffers[x], &commandBufferBeginCreateInfo) == VK_SUCCESS) {
+    if (vkBeginCommandBuffer(app->commandBuffers[x], &commandBufferBeginCreateInfo) == VK_SUCCESS) {
       printf("\033[22;32m%s%d\033[0m\n", "began recording command buffer for image #", x);
     }
       
-    vkCmdBindPipeline(app->rayTraceCommandBuffers[x], VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, app->rayTracePipeline);
-    vkCmdBindDescriptorSets(app->rayTraceCommandBuffers[x], VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, app->rayTracePipelineLayout, 0, 1, &app->rayTraceDescriptorSet, 0, 0);
-    vkCmdBindDescriptorSets(app->rayTraceCommandBuffers[x], VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, app->rayTracePipelineLayout, 1, 1, &app->materialDescriptorSet, 0, 0);
+    vkCmdBindPipeline(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, app->rayTracePipeline);
+    vkCmdBindDescriptorSets(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, app->rayTracePipelineLayout, 0, 1, &app->rayTraceDescriptorSet, 0, 0);
+    vkCmdBindDescriptorSets(app->commandBuffers[x], VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, app->rayTracePipelineLayout, 1, 1, &app->materialDescriptorSet, 0, 0);
 
-    pvkCmdTraceRaysKHR(app->rayTraceCommandBuffers[x], &rgenShaderBindingTable, &rmissShaderBindingTable, &rchitShaderBindingTable, &callableShaderBindingTable, 800, 600, 1);
+    pvkCmdTraceRaysKHR(app->commandBuffers[x], &rgenShaderBindingTable, &rmissShaderBindingTable, &rchitShaderBindingTable, &callableShaderBindingTable, 800, 600, 1);
   
     { 
       VkImageMemoryBarrier imageMemoryBarrier = {};
@@ -1586,7 +1592,7 @@ void createCommandBuffers(struct VulkanApplication* app) {
       imageMemoryBarrier.srcAccessMask = 0;
       imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 
-      vkCmdPipelineBarrier(app->rayTraceCommandBuffers[x], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &imageMemoryBarrier);
+      vkCmdPipelineBarrier(app->commandBuffers[x], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &imageMemoryBarrier);
     }
 
     { 
@@ -1600,7 +1606,7 @@ void createCommandBuffers(struct VulkanApplication* app) {
       imageMemoryBarrier.srcAccessMask = 0;
       imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
-      vkCmdPipelineBarrier(app->rayTraceCommandBuffers[x], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &imageMemoryBarrier);
+      vkCmdPipelineBarrier(app->commandBuffers[x], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &imageMemoryBarrier);
     }
 
     {
@@ -1627,7 +1633,7 @@ void createCommandBuffers(struct VulkanApplication* app) {
       imageCopy.dstOffset = offset;
       imageCopy.extent = extent;
   
-      vkCmdCopyImage(app->rayTraceCommandBuffers[x], app->rayTraceImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, app->swapchainImages[x], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageCopy);
+      vkCmdCopyImage(app->commandBuffers[x], app->rayTraceImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, app->swapchainImages[x], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageCopy);
     }
 
     { 
@@ -1648,7 +1654,7 @@ void createCommandBuffers(struct VulkanApplication* app) {
       imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
       imageMemoryBarrier.dstAccessMask = 0;
 
-      vkCmdPipelineBarrier(app->rayTraceCommandBuffers[x], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &imageMemoryBarrier);
+      vkCmdPipelineBarrier(app->commandBuffers[x], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &imageMemoryBarrier);
     }
 
     { 
@@ -1669,10 +1675,10 @@ void createCommandBuffers(struct VulkanApplication* app) {
       imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
       imageMemoryBarrier.dstAccessMask = 0;
 
-      vkCmdPipelineBarrier(app->rayTraceCommandBuffers[x], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &imageMemoryBarrier);
+      vkCmdPipelineBarrier(app->commandBuffers[x], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &imageMemoryBarrier);
     }
 
-    if (vkEndCommandBuffer(app->rayTraceCommandBuffers[x]) == VK_SUCCESS) {
+    if (vkEndCommandBuffer(app->commandBuffers[x]) == VK_SUCCESS) {
       printf("\033[22;32m%s%d\033[0m\n", "ended recording command buffer for image #", x);
     }
   }
@@ -1733,7 +1739,7 @@ void drawFrame(struct VulkanApplication* app, struct Camera* camera) {
   submitInfo.pWaitDstStageMask = waitStages;
 
   submitInfo.commandBufferCount = 1;
-  submitInfo.pCommandBuffers = &app->rayTraceCommandBuffers[imageIndex];
+  submitInfo.pCommandBuffers = &app->commandBuffers[imageIndex];
 
   VkSemaphore signalSemaphores[1] = {app->renderFinishedSemaphores[app->currentFrame]};
   submitInfo.signalSemaphoreCount = 1;
@@ -1832,6 +1838,41 @@ void runMainLoop(struct VulkanApplication* app, struct Camera* camera) {
     
     drawFrame(app, camera);
   }
+
+  vkDeviceWaitIdle(app->logicalDevice);
+}
+
+void cleanUp(struct VulkanApplication* app) {
+  PFN_vkDestroyAccelerationStructureKHR pvkDestroyAccelerationStructureKHR = (PFN_vkDestroyAccelerationStructureKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkDestroyAccelerationStructureKHR");
+
+  free(app->imageAvailableSemaphores);
+  free(app->renderFinishedSemaphores);
+  free(app->inFlightFences);
+  free(app->imagesInFlight);
+
+  vkFreeCommandBuffers(app->logicalDevice, app->commandPool, app->imageCount, app->commandBuffers);
+  free(app->commandBuffers);
+
+  vkFreeMemory(app->logicalDevice, app->shaderBindingTableBufferMemory, NULL);
+  vkDestroyBuffer(app->logicalDevice, app->shaderBindingTableBuffer, NULL);
+
+  vkDestroyPipeline(app->logicalDevice, app->rayTracePipeline, NULL);
+  vkDestroyPipelineLayout(app->logicalDevice, app->rayTracePipelineLayout, NULL);
+
+  vkDestroyDescriptorSetLayout(app->logicalDevice, app->rayTraceDescriptorSetLayouts[1], NULL);
+  vkDestroyDescriptorSetLayout(app->logicalDevice, app->rayTraceDescriptorSetLayouts[0], NULL);
+  free(app->rayTraceDescriptorSetLayouts);
+
+  vkFreeMemory(app->logicalDevice, app->uniformBufferMemory, NULL);
+  vkDestroyBuffer(app->logicalDevice, app->uniformBuffer, NULL);
+
+  pvkDestroyAccelerationStructureKHR(app->logicalDevice, app->topLevelAccelerationStructure, NULL);
+  vkFreeMemory(app->logicalDevice, app->topLevelAccelerationStructureBufferMemory, NULL);
+  vkDestroyBuffer(app->logicalDevice, app->topLevelAccelerationStructureBuffer, NULL);
+
+  pvkDestroyAccelerationStructureKHR(app->logicalDevice, app->accelerationStructure, NULL);
+  vkFreeMemory(app->logicalDevice, app->accelerationStructureBufferMemory, NULL);
+  vkDestroyBuffer(app->logicalDevice, app->accelerationStructureBuffer, NULL);
 }
 
 int main(void) {
@@ -1882,6 +1923,8 @@ int main(void) {
   createSynchronizationObjects(app);
 
   runMainLoop(app, camera);
+
+  cleanUp(app);
   
   return 0;
 }
