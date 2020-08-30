@@ -106,6 +106,7 @@ struct VulkanApplication {
   VkBuffer uniformBuffer;
   VkDeviceMemory uniformBufferMemory;
 
+  VkDescriptorPool descriptorPool;
   VkDescriptorSet rayTraceDescriptorSet;
   VkDescriptorSet materialDescriptorSet;
   VkDescriptorSetLayout* rayTraceDescriptorSetLayouts;
@@ -857,6 +858,9 @@ void buildAccelerationStructure(struct VulkanApplication* app, struct Scene* sce
   vkQueueWaitIdle(app->computeQueue);
 
   vkFreeCommandBuffers(app->logicalDevice, app->commandPool, 1, &commandBuffer);
+
+  vkDestroyBuffer(app->logicalDevice, scratchBuffer, NULL);
+  vkFreeMemory(app->logicalDevice, scratchBufferMemory, NULL);
 }
 
 void createTopLevelAccelerationStructure(struct VulkanApplication* app) {
@@ -1053,6 +1057,12 @@ void createTopLevelAccelerationStructure(struct VulkanApplication* app) {
   vkQueueWaitIdle(app->computeQueue);
 
   vkFreeCommandBuffers(app->logicalDevice, app->commandPool, 1, &commandBuffer);
+
+  vkDestroyBuffer(app->logicalDevice, scratchBuffer, NULL);
+  vkFreeMemory(app->logicalDevice, scratchBufferMemory, NULL);
+
+  vkDestroyBuffer(app->logicalDevice, geometryInstanceBuffer, NULL);
+  vkFreeMemory(app->logicalDevice, geometryInstanceBufferMemory, NULL);
 }
 
 void createUniformBuffer(struct VulkanApplication* app) {
@@ -1061,7 +1071,6 @@ void createUniformBuffer(struct VulkanApplication* app) {
 }
 
 void createDescriptorSets(struct VulkanApplication* app) {
-  VkDescriptorPool descriptorPool;
   app->rayTraceDescriptorSetLayouts = (VkDescriptorSetLayout*)malloc(sizeof(VkDescriptorSetLayout) * 2);
 
   VkDescriptorPoolSize descriptorPoolSizes[4];
@@ -1083,7 +1092,7 @@ void createDescriptorSets(struct VulkanApplication* app) {
   descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes;
   descriptorPoolCreateInfo.maxSets = 2;
 
-  if (vkCreateDescriptorPool(app->logicalDevice, &descriptorPoolCreateInfo, NULL, &descriptorPool) == VK_SUCCESS) {
+  if (vkCreateDescriptorPool(app->logicalDevice, &descriptorPoolCreateInfo, NULL, &app->descriptorPool) == VK_SUCCESS) {
     printf("\033[22;32m%s\033[0m\n", "created descriptor pool");
   }
 
@@ -1130,7 +1139,7 @@ void createDescriptorSets(struct VulkanApplication* app) {
 
     VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
     descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    descriptorSetAllocateInfo.descriptorPool = descriptorPool;
+    descriptorSetAllocateInfo.descriptorPool = app->descriptorPool;
     descriptorSetAllocateInfo.descriptorSetCount = 1;
     descriptorSetAllocateInfo.pSetLayouts = &app->rayTraceDescriptorSetLayouts[0];
 
@@ -1249,7 +1258,7 @@ void createDescriptorSets(struct VulkanApplication* app) {
 
     VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
     descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    descriptorSetAllocateInfo.descriptorPool = descriptorPool;
+    descriptorSetAllocateInfo.descriptorPool = app->descriptorPool;
     descriptorSetAllocateInfo.descriptorSetCount = 1;
     descriptorSetAllocateInfo.pSetLayouts = &app->rayTraceDescriptorSetLayouts[1];
 
@@ -1844,6 +1853,13 @@ void runMainLoop(struct VulkanApplication* app, struct Camera* camera) {
 
 void cleanUp(struct VulkanApplication* app) {
   PFN_vkDestroyAccelerationStructureKHR pvkDestroyAccelerationStructureKHR = (PFN_vkDestroyAccelerationStructureKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkDestroyAccelerationStructureKHR");
+  PFN_vkDestroyDebugUtilsMessengerEXT pvkDestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(app->instance, "vkDestroyDebugUtilsMessengerEXT");
+
+  for (size_t x = 0; x < MAX_FRAMES_IN_FLIGHT; x++) {
+    vkDestroySemaphore(app->logicalDevice, app->renderFinishedSemaphores[x], NULL);
+    vkDestroySemaphore(app->logicalDevice, app->imageAvailableSemaphores[x], NULL);
+    vkDestroyFence(app->logicalDevice, app->inFlightFences[x], NULL);
+  }
 
   free(app->imageAvailableSemaphores);
   free(app->renderFinishedSemaphores);
@@ -1853,8 +1869,8 @@ void cleanUp(struct VulkanApplication* app) {
   vkFreeCommandBuffers(app->logicalDevice, app->commandPool, app->imageCount, app->commandBuffers);
   free(app->commandBuffers);
 
-  vkFreeMemory(app->logicalDevice, app->shaderBindingTableBufferMemory, NULL);
   vkDestroyBuffer(app->logicalDevice, app->shaderBindingTableBuffer, NULL);
+  vkFreeMemory(app->logicalDevice, app->shaderBindingTableBufferMemory, NULL);
 
   vkDestroyPipeline(app->logicalDevice, app->rayTracePipeline, NULL);
   vkDestroyPipelineLayout(app->logicalDevice, app->rayTracePipelineLayout, NULL);
@@ -1862,17 +1878,49 @@ void cleanUp(struct VulkanApplication* app) {
   vkDestroyDescriptorSetLayout(app->logicalDevice, app->rayTraceDescriptorSetLayouts[1], NULL);
   vkDestroyDescriptorSetLayout(app->logicalDevice, app->rayTraceDescriptorSetLayouts[0], NULL);
   free(app->rayTraceDescriptorSetLayouts);
+  vkDestroyDescriptorPool(app->logicalDevice, app->descriptorPool, NULL);
 
-  vkFreeMemory(app->logicalDevice, app->uniformBufferMemory, NULL);
   vkDestroyBuffer(app->logicalDevice, app->uniformBuffer, NULL);
+  vkFreeMemory(app->logicalDevice, app->uniformBufferMemory, NULL);
 
   pvkDestroyAccelerationStructureKHR(app->logicalDevice, app->topLevelAccelerationStructure, NULL);
-  vkFreeMemory(app->logicalDevice, app->topLevelAccelerationStructureBufferMemory, NULL);
   vkDestroyBuffer(app->logicalDevice, app->topLevelAccelerationStructureBuffer, NULL);
+  vkFreeMemory(app->logicalDevice, app->topLevelAccelerationStructureBufferMemory, NULL);
 
   pvkDestroyAccelerationStructureKHR(app->logicalDevice, app->accelerationStructure, NULL);
-  vkFreeMemory(app->logicalDevice, app->accelerationStructureBufferMemory, NULL);
   vkDestroyBuffer(app->logicalDevice, app->accelerationStructureBuffer, NULL);
+  vkFreeMemory(app->logicalDevice, app->accelerationStructureBufferMemory, NULL);
+
+  vkDestroyImageView(app->logicalDevice, app->rayTraceImageView, NULL);
+  vkFreeMemory(app->logicalDevice, app->rayTraceImageMemory, NULL);
+  vkDestroyImage(app->logicalDevice, app->rayTraceImage, NULL);
+
+  vkDestroyBuffer(app->logicalDevice, app->materialBuffer, NULL);
+  vkFreeMemory(app->logicalDevice, app->materialBufferMemory, NULL);
+
+  vkDestroyBuffer(app->logicalDevice, app->materialIndexBuffer, NULL);
+  vkFreeMemory(app->logicalDevice, app->materialIndexBufferMemory, NULL);
+
+  vkDestroyBuffer(app->logicalDevice, app->indexBuffer, NULL);
+  vkFreeMemory(app->logicalDevice, app->indexBufferMemory, NULL);
+
+  vkDestroyBuffer(app->logicalDevice, app->vertexPositionBuffer, NULL);
+  vkFreeMemory(app->logicalDevice, app->vertexPositionBufferMemory, NULL);
+
+  vkDestroyCommandPool(app->logicalDevice, app->commandPool, NULL);
+
+  vkDestroySwapchainKHR(app->logicalDevice, app->swapchain, NULL);
+
+  vkDestroyDevice(app->logicalDevice, NULL);
+
+  if (ENABLE_VALIDATION) {
+    pvkDestroyDebugUtilsMessengerEXT(app->instance, app->debugMessenger, NULL);
+  }
+
+  vkDestroySurfaceKHR(app->instance, app->surface, NULL);
+  vkDestroyInstance(app->instance, NULL);
+  glfwDestroyWindow(app->window);
+  glfwTerminate();
 }
 
 int main(void) {
