@@ -325,6 +325,8 @@ void initializeVulkanContext(struct VulkanApplication* app) {
     if (pvkCreateDebugUtilsMessengerEXT(app->instance, &messengerCreateInfo, NULL, &app->debugMessenger) == VK_SUCCESS) {
       printf("created debug messenger\n");
     }
+
+    free(layerNames);
   }
   else {
     instanceCreateInfo.enabledLayerCount = 0;
@@ -338,6 +340,8 @@ void initializeVulkanContext(struct VulkanApplication* app) {
   if (glfwCreateWindowSurface(app->instance, app->window, NULL, &app->surface) == VK_SUCCESS) {
     printf("created window surface\n");
   }
+
+  free(extensionNames);
 }
 
 void pickPhysicalDevice(struct VulkanApplication* app) {
@@ -453,6 +457,7 @@ void createLogicalConnection(struct VulkanApplication* app) {
   vkGetDeviceQueue(app->logicalDevice, app->presentQueueIndex, 0, &app->presentQueue);
   vkGetDeviceQueue(app->logicalDevice, app->computeQueueIndex, 0, &app->computeQueue);
 
+  free(deviceEnabledExtensionNames);
   free(queueFamilyProperties);
   free(deviceQueueCreateInfos);
 }
@@ -1851,7 +1856,7 @@ void runMainLoop(struct VulkanApplication* app, struct Camera* camera) {
   vkDeviceWaitIdle(app->logicalDevice);
 }
 
-void cleanUp(struct VulkanApplication* app) {
+void cleanUp(struct VulkanApplication* app, struct Scene* scene) {
   PFN_vkDestroyAccelerationStructureKHR pvkDestroyAccelerationStructureKHR = (PFN_vkDestroyAccelerationStructureKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkDestroyAccelerationStructureKHR");
   PFN_vkDestroyDebugUtilsMessengerEXT pvkDestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(app->instance, "vkDestroyDebugUtilsMessengerEXT");
 
@@ -1909,6 +1914,7 @@ void cleanUp(struct VulkanApplication* app) {
 
   vkDestroyCommandPool(app->logicalDevice, app->commandPool, NULL);
 
+  free(app->swapchainImages);
   vkDestroySwapchainKHR(app->logicalDevice, app->swapchain, NULL);
 
   vkDestroyDevice(app->logicalDevice, NULL);
@@ -1921,6 +1927,10 @@ void cleanUp(struct VulkanApplication* app) {
   vkDestroyInstance(app->instance, NULL);
   glfwDestroyWindow(app->window);
   glfwTerminate();
+
+  tinyobj_attrib_free(&scene->attributes);
+  tinyobj_shapes_free(scene->shapes, scene->numShapes);
+  tinyobj_materials_free(scene->materials, scene->numMaterials);
 }
 
 int main(void) {
@@ -1972,7 +1982,10 @@ int main(void) {
 
   runMainLoop(app, camera);
 
-  cleanUp(app);
+  cleanUp(app, scene);
+
+  free(app);
+  free(scene);
   
   return 0;
 }
