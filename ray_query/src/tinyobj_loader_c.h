@@ -1342,8 +1342,8 @@ int tinyobj_parse_obj(tinyobj_attrib_t *attrib, tinyobj_shape_t **shapes,
   /* Load material(if exits) */
   if (mtllib_line_index >= 0 && commands[mtllib_line_index].mtllib_name &&
       commands[mtllib_line_index].mtllib_name_len > 0) {
-    char *filename = my_strndup(commands[mtllib_line_index].mtllib_name,
-                                commands[mtllib_line_index].mtllib_name_len);
+    // char *filename = my_strndup(commands[mtllib_line_index].mtllib_name,
+    //                             commands[mtllib_line_index].mtllib_name_len);
 
     char* updatedFilename = (char*)malloc(strlen(file_name));
     strcpy(updatedFilename, file_name);

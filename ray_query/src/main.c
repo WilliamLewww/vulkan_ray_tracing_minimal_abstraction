@@ -1957,6 +1957,9 @@ void cleanUp(struct VulkanApplication* app, struct Scene* scene) {
   vkDestroyPipeline(app->logicalDevice, app->graphicsPipeline, NULL);
   vkDestroyPipelineLayout(app->logicalDevice, app->pipelineLayout, NULL);
 
+  free(app->vertexBindingDescriptions);
+  free(app->vertexAttributeDescriptions);
+
   vkDestroyDescriptorSetLayout(app->logicalDevice, app->rayTraceDescriptorSetLayouts[1], NULL);
   vkDestroyDescriptorSetLayout(app->logicalDevice, app->rayTraceDescriptorSetLayouts[0], NULL);
   free(app->rayTraceDescriptorSetLayouts);
@@ -1992,6 +1995,7 @@ void cleanUp(struct VulkanApplication* app, struct Scene* scene) {
   for (int x = 0; x < app->imageCount; x++) {
     vkDestroyFramebuffer(app->logicalDevice, app->swapchainFramebuffers[x], NULL);
   }
+  free(app->swapchainFramebuffers);
 
   vkDestroyImageView(app->logicalDevice, app->depthImageView, NULL);
   vkFreeMemory(app->logicalDevice, app->depthImageMemory, NULL);
@@ -2004,6 +2008,7 @@ void cleanUp(struct VulkanApplication* app, struct Scene* scene) {
   for (int x = 0; x < app->imageCount; x++) {
     vkDestroyImageView(app->logicalDevice, app->swapchainImageViews[x], NULL);
   }
+  free(app->swapchainImageViews);
 
   free(app->swapchainImages);
   vkDestroySwapchainKHR(app->logicalDevice, app->swapchain, NULL);
