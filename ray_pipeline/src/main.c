@@ -91,9 +91,9 @@ struct VulkanApplication {
 
   VkPhysicalDeviceRayTracingPropertiesKHR rayTracingProperties;
 
-  VkAccelerationStructureKHR accelerationStructure;
-  VkBuffer accelerationStructureBuffer;
-  VkDeviceMemory accelerationStructureBufferMemory;
+  VkAccelerationStructureKHR bottomLevelAccelerationStructure;
+  VkBuffer bottomLevelAccelerationStructureBuffer;
+  VkDeviceMemory bottomLevelAccelerationStructureBufferMemory;
 
   VkAccelerationStructureKHR topLevelAccelerationStructure;
   VkBuffer topLevelAccelerationStructureBuffer;
@@ -691,7 +691,7 @@ void createTextures(struct VulkanApplication* app) {
   vkFreeCommandBuffers(app->logicalDevice, app->commandPool, 1, &commandBuffer);
 }
 
-void createAccelerationStructure(struct VulkanApplication* app, struct Scene* scene) {
+void createBottomLevelAccelerationStructure(struct VulkanApplication* app, struct Scene* scene) {
   VkAccelerationStructureCreateGeometryTypeInfoKHR geometryInfos = {};
   geometryInfos.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_GEOMETRY_TYPE_INFO_KHR;
   geometryInfos.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
@@ -709,19 +709,19 @@ void createAccelerationStructure(struct VulkanApplication* app, struct Scene* sc
   accelerationStructureCreateInfo.pGeometryInfos = &geometryInfos;
   
   PFN_vkCreateAccelerationStructureKHR pvkCreateAccelerationStructureKHR = (PFN_vkCreateAccelerationStructureKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkCreateAccelerationStructureKHR");
-  if (pvkCreateAccelerationStructureKHR(app->logicalDevice, &accelerationStructureCreateInfo, NULL, &app->accelerationStructure) == VK_SUCCESS) {
+  if (pvkCreateAccelerationStructureKHR(app->logicalDevice, &accelerationStructureCreateInfo, NULL, &app->bottomLevelAccelerationStructure) == VK_SUCCESS) {
     printf("\033[22;32m%s\033[0m\n", "created acceleration structure");
   }
 }
 
-void bindAccelerationStructure(struct VulkanApplication* app) {
+void bindBottomLevelAccelerationStructure(struct VulkanApplication* app) {
   PFN_vkGetAccelerationStructureMemoryRequirementsKHR pvkGetAccelerationStructureMemoryRequirementsKHR = (PFN_vkGetAccelerationStructureMemoryRequirementsKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkGetAccelerationStructureMemoryRequirementsKHR");
   PFN_vkBindAccelerationStructureMemoryKHR pvkBindAccelerationStructureMemoryKHR = (PFN_vkBindAccelerationStructureMemoryKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkBindAccelerationStructureMemoryKHR");
     
   VkAccelerationStructureMemoryRequirementsInfoKHR memoryRequirementsInfo = {};
   memoryRequirementsInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_KHR;
   memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_OBJECT_KHR;
-  memoryRequirementsInfo.accelerationStructure = app->accelerationStructure;
+  memoryRequirementsInfo.accelerationStructure = app->bottomLevelAccelerationStructure;
   memoryRequirementsInfo.buildType = VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR;
 
   VkMemoryRequirements2 memoryRequirements = {};
@@ -730,13 +730,13 @@ void bindAccelerationStructure(struct VulkanApplication* app) {
 
   VkDeviceSize accelerationStructureSize = memoryRequirements.memoryRequirements.size;
 
-  createBuffer(app, accelerationStructureSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->accelerationStructureBuffer, &app->accelerationStructureBufferMemory);
+  createBuffer(app, accelerationStructureSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->bottomLevelAccelerationStructureBuffer, &app->bottomLevelAccelerationStructureBufferMemory);
 
   const VkBindAccelerationStructureMemoryInfoKHR accelerationStructureMemoryInfo = {
     .sType = VK_STRUCTURE_TYPE_BIND_ACCELERATION_STRUCTURE_MEMORY_INFO_KHR,
     .pNext = NULL,
-    .accelerationStructure = app->accelerationStructure,
-    .memory = app->accelerationStructureBufferMemory,
+    .accelerationStructure = app->bottomLevelAccelerationStructure,
+    .memory = app->bottomLevelAccelerationStructureBufferMemory,
     .memoryOffset = 0,
     .deviceIndexCount = 0,
     .pDeviceIndices = NULL
@@ -745,7 +745,7 @@ void bindAccelerationStructure(struct VulkanApplication* app) {
   pvkBindAccelerationStructureMemoryKHR(app->logicalDevice, 1, &accelerationStructureMemoryInfo);
 }
 
-void buildAccelerationStructure(struct VulkanApplication* app, struct Scene* scene) {
+void buildBottomLevelAccelerationStructure(struct VulkanApplication* app, struct Scene* scene) {
   PFN_vkGetBufferDeviceAddressKHR pvkGetBufferDeviceAddressKHR = (PFN_vkGetBufferDeviceAddressKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkGetBufferDeviceAddressKHR");
   PFN_vkGetAccelerationStructureMemoryRequirementsKHR pvkGetAccelerationStructureMemoryRequirementsKHR = (PFN_vkGetAccelerationStructureMemoryRequirementsKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkGetAccelerationStructureMemoryRequirementsKHR");
   PFN_vkCmdBuildAccelerationStructureKHR pvkCmdBuildAccelerationStructureKHR = (PFN_vkCmdBuildAccelerationStructureKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkCmdBuildAccelerationStructureKHR");
@@ -793,7 +793,7 @@ void buildAccelerationStructure(struct VulkanApplication* app, struct Scene* sce
   VkAccelerationStructureMemoryRequirementsInfoKHR memoryRequirementsInfo = {};
   memoryRequirementsInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_KHR;
   memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_BUILD_SCRATCH_KHR;
-  memoryRequirementsInfo.accelerationStructure = app->accelerationStructure;
+  memoryRequirementsInfo.accelerationStructure = app->bottomLevelAccelerationStructure;
   memoryRequirementsInfo.buildType = VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR;
 
   VkMemoryRequirements2 memoryRequirements = {};
@@ -822,7 +822,7 @@ void buildAccelerationStructure(struct VulkanApplication* app, struct Scene* sce
     .flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
     .update = VK_FALSE,
     .srcAccelerationStructure = VK_NULL_HANDLE,
-    .dstAccelerationStructure = app->accelerationStructure,
+    .dstAccelerationStructure = app->bottomLevelAccelerationStructure,
     .geometryArrayOfPointers = VK_TRUE,
     .geometryCount = 1,
     .ppGeometries = geometries,
@@ -930,7 +930,7 @@ void createTopLevelAccelerationStructure(struct VulkanApplication* app) {
 
   VkAccelerationStructureDeviceAddressInfoKHR accelerationStructureDeviceAddressInfo = {};
   accelerationStructureDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
-  accelerationStructureDeviceAddressInfo.accelerationStructure = app->accelerationStructure;
+  accelerationStructureDeviceAddressInfo.accelerationStructure = app->bottomLevelAccelerationStructure;
 
   VkDeviceAddress accelerationStructureDeviceAddress = pvkGetAccelerationStructureDeviceAddressKHR(app->logicalDevice, &accelerationStructureDeviceAddressInfo);
 
@@ -1892,9 +1892,9 @@ void cleanUp(struct VulkanApplication* app, struct Scene* scene) {
   vkDestroyBuffer(app->logicalDevice, app->topLevelAccelerationStructureBuffer, NULL);
   vkFreeMemory(app->logicalDevice, app->topLevelAccelerationStructureBufferMemory, NULL);
 
-  pvkDestroyAccelerationStructureKHR(app->logicalDevice, app->accelerationStructure, NULL);
-  vkDestroyBuffer(app->logicalDevice, app->accelerationStructureBuffer, NULL);
-  vkFreeMemory(app->logicalDevice, app->accelerationStructureBufferMemory, NULL);
+  pvkDestroyAccelerationStructureKHR(app->logicalDevice, app->bottomLevelAccelerationStructure, NULL);
+  vkDestroyBuffer(app->logicalDevice, app->bottomLevelAccelerationStructureBuffer, NULL);
+  vkFreeMemory(app->logicalDevice, app->bottomLevelAccelerationStructureBufferMemory, NULL);
 
   vkDestroyImageView(app->logicalDevice, app->rayTraceImageView, NULL);
   vkFreeMemory(app->logicalDevice, app->rayTraceImageMemory, NULL);
@@ -1966,9 +1966,9 @@ int main(void) {
   createMaterialsBuffer(app, scene);
   createTextures(app);
 
-  createAccelerationStructure(app, scene);
-  bindAccelerationStructure(app);
-  buildAccelerationStructure(app, scene);
+  createBottomLevelAccelerationStructure(app, scene);
+  bindBottomLevelAccelerationStructure(app);
+  buildBottomLevelAccelerationStructure(app, scene);
   createTopLevelAccelerationStructure(app);
 
   createUniformBuffer(app);
