@@ -583,7 +583,7 @@ void createIndexBuffer(struct VulkanApplication* app, struct Scene* scene) {
   free(positionIndices);
 }
 
-void createMaterialBuffers(struct VulkanApplication* app, struct Scene* scene) {
+void createMaterialsBuffer(struct VulkanApplication* app, struct Scene* scene) {
   VkDeviceSize indexBufferSize = sizeof(uint32_t) * scene->attributes.num_face_num_verts;
 
   VkBuffer indexStagingBuffer;
@@ -1963,7 +1963,7 @@ int main(void) {
   createCommandPool(app);
   createVertexBuffer(app, scene);
   createIndexBuffer(app, scene);
-  createMaterialBuffers(app, scene);
+  createMaterialsBuffer(app, scene);
   createTextures(app);
 
   createAccelerationStructure(app, scene);
