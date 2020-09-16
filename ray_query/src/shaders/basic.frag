@@ -37,6 +37,21 @@ float random(vec2 uv, float seed) {
   return fract(sin(mod(dot(uv, vec2(12.9898, 78.233)) + 1113.1 * seed, M_PI)) * 43758.5453);;
 }
 
+vec3 uniformSampleHemisphere(vec2 uv) {
+  float z = uv.x;
+  float r = sqrt(max(0, 1.0 - z * z));
+  float phi = 2.0 * M_PI * uv.y;
+
+  return vec3(r * cos(phi), z, r * sin(phi));
+}
+
+vec3 alignHemisphereWithCoordinateSystem(vec3 hemisphere, vec3 up) {
+  vec3 right = normalize(cross(up, vec3(0.0072f, 1.0f, 0.0034f)));
+  vec3 forward = cross(right, up);
+
+  return hemisphere.x * right + hemisphere.y * up + hemisphere.z * forward;
+}
+
 void main() {
   vec3 directColor = vec3(0.0, 0.0, 0.0);
   vec3 indirectColor = vec3(0.0, 0.0, 0.0);
@@ -52,42 +67,63 @@ void main() {
   vec3 surfaceColor = materialBuffer.data[materialIndexBuffer.data[gl_PrimitiveID]].diffuse;
 
   {
-    // 34 & 35 == light
-    vec3 lightColor = vec3(0.6, 0.6, 0.6);
+    vec3 hemisphere = uniformSampleHemisphere(vec2(random(gl_FragCoord.xy, camera.frameCount), random(gl_FragCoord.xy, camera.frameCount + 1)));
+    vec3 alignedHemisphere = alignHemisphereWithCoordinateSystem(hemisphere, geometricNormal);
 
-    ivec3 lightIndices = ivec3(indexBuffer.data[3 * 34 + 0], indexBuffer.data[3 * 34 + 1], indexBuffer.data[3 * 34 + 2]);
-
-    vec3 lightVertexA = vec3(vertexBuffer.data[3 * lightIndices.x + 0], vertexBuffer.data[3 * lightIndices.x + 1], vertexBuffer.data[3 * lightIndices.x + 2]);
-    vec3 lightVertexB = vec3(vertexBuffer.data[3 * lightIndices.y + 0], vertexBuffer.data[3 * lightIndices.y + 1], vertexBuffer.data[3 * lightIndices.y + 2]);
-    vec3 lightVertexC = vec3(vertexBuffer.data[3 * lightIndices.z + 0], vertexBuffer.data[3 * lightIndices.z + 1], vertexBuffer.data[3 * lightIndices.z + 2]);
-
-    vec2 uv = vec2(random(gl_FragCoord.xy, camera.frameCount), random(gl_FragCoord.xy, camera.frameCount));
-    if (uv.x + uv.y > 1.0f) {
-      uv.x = 1.0f - uv.x;
-      uv.y = 1.0f - uv.y;
-    }
-
-    vec3 lightBarycentric = vec3(1.0 - uv.x - uv.y, uv.x, uv.y);
-    vec3 lightPosition = lightVertexA * lightBarycentric.x + lightVertexB * lightBarycentric.y + lightVertexC * lightBarycentric.z;
-
-    vec3 positionToLightDirection = normalize(lightPosition - interpolatedPosition);
-
-    vec3 shadowRayOrigin = interpolatedPosition;
-    vec3 shadowRayDirection = positionToLightDirection;
-    float shadowRayDistance = length(lightPosition - interpolatedPosition) - 0.001f;
+    vec3 rayOrigin = interpolatedPosition;
+    vec3 rayDirection = alignedHemisphere;
 
     rayQueryEXT rayQuery;
-    rayQueryInitializeEXT(rayQuery, topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT, 0xFF, shadowRayOrigin, 0.001f, shadowRayDirection, shadowRayDistance);
+    rayQueryInitializeEXT(rayQuery, topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT, 0xFF, rayOrigin, 0.001f, rayDirection, 1000.0f);
   
     while (rayQueryProceedEXT(rayQuery));
 
-    if (rayQueryGetIntersectionTypeEXT(rayQuery, true) == gl_RayQueryCommittedIntersectionNoneEXT) {
-      directColor = vec3(surfaceColor * lightColor * dot(geometricNormal, positionToLightDirection));
-    }
-    else {
-      directColor = vec3(0.0, 0.0, 0.0);
+    if (rayQueryGetIntersectionTypeEXT(rayQuery, true) != gl_RayQueryCommittedIntersectionNoneEXT) {
+      int hitPrimitiveIndex = rayQueryGetIntersectionPrimitiveIndexEXT(rayQuery, true);
+
+      if (hitPrimitiveIndex == 40 || hitPrimitiveIndex == 41) {
+        directColor = vec3(1.0, 1.0, 1.0);
+      }
     }
   }
+
+  // {
+  //   // 40 & 41 == light
+  //   vec3 lightColor = vec3(0.6, 0.6, 0.6);
+
+  //   ivec3 lightIndices = ivec3(indexBuffer.data[3 * 34 + 0], indexBuffer.data[3 * 34 + 1], indexBuffer.data[3 * 34 + 2]);
+
+  //   vec3 lightVertexA = vec3(vertexBuffer.data[3 * lightIndices.x + 0], vertexBuffer.data[3 * lightIndices.x + 1], vertexBuffer.data[3 * lightIndices.x + 2]);
+  //   vec3 lightVertexB = vec3(vertexBuffer.data[3 * lightIndices.y + 0], vertexBuffer.data[3 * lightIndices.y + 1], vertexBuffer.data[3 * lightIndices.y + 2]);
+  //   vec3 lightVertexC = vec3(vertexBuffer.data[3 * lightIndices.z + 0], vertexBuffer.data[3 * lightIndices.z + 1], vertexBuffer.data[3 * lightIndices.z + 2]);
+
+  //   vec2 uv = vec2(random(gl_FragCoord.xy, camera.frameCount), random(gl_FragCoord.xy, camera.frameCount));
+  //   if (uv.x + uv.y > 1.0f) {
+  //     uv.x = 1.0f - uv.x;
+  //     uv.y = 1.0f - uv.y;
+  //   }
+
+  //   vec3 lightBarycentric = vec3(1.0 - uv.x - uv.y, uv.x, uv.y);
+  //   vec3 lightPosition = lightVertexA * lightBarycentric.x + lightVertexB * lightBarycentric.y + lightVertexC * lightBarycentric.z;
+
+  //   vec3 positionToLightDirection = normalize(lightPosition - interpolatedPosition);
+
+  //   vec3 shadowRayOrigin = interpolatedPosition;
+  //   vec3 shadowRayDirection = positionToLightDirection;
+  //   float shadowRayDistance = length(lightPosition - interpolatedPosition) - 0.001f;
+
+  //   rayQueryEXT rayQuery;
+  //   rayQueryInitializeEXT(rayQuery, topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT, 0xFF, shadowRayOrigin, 0.001f, shadowRayDirection, shadowRayDistance);
+  
+  //   while (rayQueryProceedEXT(rayQuery));
+
+  //   if (rayQueryGetIntersectionTypeEXT(rayQuery, true) == gl_RayQueryCommittedIntersectionNoneEXT) {
+  //     directColor = vec3(surfaceColor * lightColor * dot(geometricNormal, positionToLightDirection));
+  //   }
+  //   else {
+  //     directColor = vec3(0.0, 0.0, 0.0);
+  //   }
+  // }
 
   vec4 color = vec4(directColor + (indirectColor / 16), 1.0);
 
