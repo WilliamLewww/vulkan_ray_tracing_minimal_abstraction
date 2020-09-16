@@ -868,7 +868,7 @@ void buildBottomLevelAccelerationStructure(struct VulkanApplication* app, struct
   vkFreeMemory(app->logicalDevice, scratchBufferMemory, NULL);
 }
 
-void createTopLevelAccelerationStructure(struct VulkanApplication* app) {
+void createBindBuildTopLevelAccelerationStructure(struct VulkanApplication* app) {
   PFN_vkCreateAccelerationStructureKHR pvkCreateAccelerationStructureKHR = (PFN_vkCreateAccelerationStructureKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkCreateAccelerationStructureKHR");
   PFN_vkGetAccelerationStructureMemoryRequirementsKHR pvkGetAccelerationStructureMemoryRequirementsKHR = (PFN_vkGetAccelerationStructureMemoryRequirementsKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkGetAccelerationStructureMemoryRequirementsKHR");
   PFN_vkBindAccelerationStructureMemoryKHR pvkBindAccelerationStructureMemoryKHR = (PFN_vkBindAccelerationStructureMemoryKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkBindAccelerationStructureMemoryKHR");
@@ -999,7 +999,7 @@ void createTopLevelAccelerationStructure(struct VulkanApplication* app) {
   scratchMemoryRequirements.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2;
   pvkGetAccelerationStructureMemoryRequirementsKHR(app->logicalDevice, &scratchMemoryRequirementInfo, &scratchMemoryRequirements);
  
-  VkDeviceSize scratchSize = memoryRequirements.memoryRequirements.size;
+  VkDeviceSize scratchSize = scratchMemoryRequirements.memoryRequirements.size;
 
   VkBuffer scratchBuffer;
   VkDeviceMemory scratchBufferMemory;
@@ -1969,7 +1969,7 @@ int main(void) {
   createBottomLevelAccelerationStructure(app, scene);
   bindBottomLevelAccelerationStructure(app);
   buildBottomLevelAccelerationStructure(app, scene);
-  createTopLevelAccelerationStructure(app);
+  createBindBuildTopLevelAccelerationStructure(app);
 
   createUniformBuffer(app);
   createDescriptorSets(app);
