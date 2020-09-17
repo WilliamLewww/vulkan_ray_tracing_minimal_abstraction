@@ -116,7 +116,7 @@ void main() {
   vec3 previousNormal = geometricNormal;
 
   bool rayActive = true;
-  int maxRayDepth = 1;
+  int maxRayDepth = 16;
   for (int rayDepth = 0; rayDepth < maxRayDepth && rayActive; rayDepth++) {
     rayQueryEXT rayQuery;
     rayQueryInitializeEXT(rayQuery, topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT, 0xFF, rayOrigin, 0.001f, rayDirection, 1000.0f);
@@ -143,7 +143,7 @@ void main() {
         indirectColor += materialBuffer.data[materialIndexBuffer.data[extensionPrimitiveIndex]].emission * dot(previousNormal, rayDirection);
       }
       else {
-        int randomIndex = int(random(gl_FragCoord.xy, camera.frameCount) * 2 + 40);
+        int randomIndex = int(random(gl_FragCoord.xy, camera.frameCount + rayDepth) * 2 + 40);
         vec3 lightColor = vec3(0.6, 0.6, 0.6);
 
         ivec3 lightIndices = ivec3(indexBuffer.data[3 * randomIndex + 0], indexBuffer.data[3 * randomIndex + 1], indexBuffer.data[3 * randomIndex + 2]);
@@ -152,7 +152,7 @@ void main() {
         vec3 lightVertexB = vec3(vertexBuffer.data[3 * lightIndices.y + 0], vertexBuffer.data[3 * lightIndices.y + 1], vertexBuffer.data[3 * lightIndices.y + 2]);
         vec3 lightVertexC = vec3(vertexBuffer.data[3 * lightIndices.z + 0], vertexBuffer.data[3 * lightIndices.z + 1], vertexBuffer.data[3 * lightIndices.z + 2]);
 
-        vec2 uv = vec2(random(gl_FragCoord.xy, camera.frameCount), random(gl_FragCoord.xy, camera.frameCount + 1));
+        vec2 uv = vec2(random(gl_FragCoord.xy, camera.frameCount + rayDepth), random(gl_FragCoord.xy, camera.frameCount + rayDepth + 1));
         if (uv.x + uv.y > 1.0f) {
           uv.x = 1.0f - uv.x;
           uv.y = 1.0f - uv.y;
@@ -180,7 +180,7 @@ void main() {
         }
       }
 
-      vec3 hemisphere = uniformSampleHemisphere(vec2(random(gl_FragCoord.xy, camera.frameCount), random(gl_FragCoord.xy, camera.frameCount + 1)));
+      vec3 hemisphere = uniformSampleHemisphere(vec2(random(gl_FragCoord.xy, camera.frameCount + rayDepth), random(gl_FragCoord.xy, camera.frameCount + rayDepth + 1)));
       vec3 alignedHemisphere = alignHemisphereWithCoordinateSystem(hemisphere, extensionNormal);
 
       rayOrigin = extensionPosition;
@@ -191,7 +191,6 @@ void main() {
       rayActive = false;
     }
   }
-  indirectColor /= maxRayDepth;
 
   vec4 color = vec4(directColor + indirectColor, 1.0);
 
