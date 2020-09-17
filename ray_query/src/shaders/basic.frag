@@ -66,11 +66,11 @@ void main() {
 
   vec3 surfaceColor = materialBuffer.data[materialIndexBuffer.data[gl_PrimitiveID]].diffuse;
 
+  // 40 & 41 == light
   if (gl_PrimitiveID == 40 || gl_PrimitiveID == 41) {
     directColor = materialBuffer.data[materialIndexBuffer.data[gl_PrimitiveID]].emission;
   }
   else {
-    // 40 & 41 == light
     int randomIndex = int(random(gl_FragCoord.xy, camera.frameCount) * 2 + 40);
     vec3 lightColor = vec3(0.6, 0.6, 0.6);
 
@@ -108,7 +108,77 @@ void main() {
     }
   }
 
-  vec4 color = vec4(directColor + (indirectColor / 16), 1.0);
+  vec3 hemisphere = uniformSampleHemisphere(vec2(random(gl_FragCoord.xy, camera.frameCount), random(gl_FragCoord.xy, camera.frameCount + 1)));
+  vec3 alignedHemisphere = alignHemisphereWithCoordinateSystem(hemisphere, geometricNormal);
+
+  vec3 rayOrigin = interpolatedPosition;
+  vec3 rayDirection = alignedHemisphere;
+
+  int maxRayDepth = 16;
+  for (int rayDepth = 0; rayDepth < maxRayDepth; rayDepth++) {
+    rayQueryEXT rayQuery;
+    rayQueryInitializeEXT(rayQuery, topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT, 0xFF, rayOrigin, 0.001f, rayDirection, 1000.0f);
+
+    while (rayQueryProceedEXT(rayQuery));
+
+    if (rayQueryGetIntersectionTypeEXT(rayQuery, true) != gl_RayQueryCommittedIntersectionNoneEXT) {
+      int extensionPrimitiveIndex = rayQueryGetIntersectionPrimitiveIndexEXT(rayQuery, true);
+      vec2 extensionIntersectionBarycentric = rayQueryGetIntersectionBarycentricsEXT(rayQuery, true);
+
+      ivec3 extensionIndices = ivec3(indexBuffer.data[3 * extensionPrimitiveIndex + 0], indexBuffer.data[3 * extensionPrimitiveIndex + 1], indexBuffer.data[3 * extensionPrimitiveIndex + 2]);
+      vec3 extensionBarycentric = vec3(1.0 - extensionIntersectionBarycentric.x - extensionIntersectionBarycentric.y, extensionIntersectionBarycentric.x, extensionIntersectionBarycentric.y);
+      
+      vec3 extensionVertexA = vec3(vertexBuffer.data[3 * extensionIndices.x + 0], vertexBuffer.data[3 * extensionIndices.x + 1], vertexBuffer.data[3 * extensionIndices.x + 2]);
+      vec3 extensionVertexB = vec3(vertexBuffer.data[3 * extensionIndices.y + 0], vertexBuffer.data[3 * extensionIndices.y + 1], vertexBuffer.data[3 * extensionIndices.y + 2]);
+      vec3 extensionVertexC = vec3(vertexBuffer.data[3 * extensionIndices.z + 0], vertexBuffer.data[3 * extensionIndices.z + 1], vertexBuffer.data[3 * extensionIndices.z + 2]);
+    
+      vec3 extensionPosition = extensionVertexA * extensionBarycentric.x + extensionVertexB * extensionBarycentric.y + extensionVertexC * extensionBarycentric.z;
+      vec3 extensionNormal = normalize(cross(extensionVertexB - extensionVertexA, extensionVertexC - extensionVertexA));
+
+      vec3 extensionSurfaceColor = materialBuffer.data[materialIndexBuffer.data[extensionPrimitiveIndex]].diffuse;
+
+      if (gl_PrimitiveID == 40 || gl_PrimitiveID == 41) {
+        indirectColor = materialBuffer.data[materialIndexBuffer.data[gl_PrimitiveID]].emission;
+      }
+      else {
+        int randomIndex = int(random(gl_FragCoord.xy, camera.frameCount) * 2 + 40);
+        vec3 lightColor = vec3(0.6, 0.6, 0.6);
+
+        ivec3 lightIndices = ivec3(indexBuffer.data[3 * randomIndex + 0], indexBuffer.data[3 * randomIndex + 1], indexBuffer.data[3 * randomIndex + 2]);
+
+        vec3 lightVertexA = vec3(vertexBuffer.data[3 * lightIndices.x + 0], vertexBuffer.data[3 * lightIndices.x + 1], vertexBuffer.data[3 * lightIndices.x + 2]);
+        vec3 lightVertexB = vec3(vertexBuffer.data[3 * lightIndices.y + 0], vertexBuffer.data[3 * lightIndices.y + 1], vertexBuffer.data[3 * lightIndices.y + 2]);
+        vec3 lightVertexC = vec3(vertexBuffer.data[3 * lightIndices.z + 0], vertexBuffer.data[3 * lightIndices.z + 1], vertexBuffer.data[3 * lightIndices.z + 2]);
+
+        vec2 uv = vec2(random(gl_FragCoord.xy, camera.frameCount), random(gl_FragCoord.xy, camera.frameCount + 1));
+        if (uv.x + uv.y > 1.0f) {
+          uv.x = 1.0f - uv.x;
+          uv.y = 1.0f - uv.y;
+        }
+
+        vec3 lightBarycentric = vec3(1.0 - uv.x - uv.y, uv.x, uv.y);
+        vec3 lightPosition = lightVertexA * lightBarycentric.x + lightVertexB * lightBarycentric.y + lightVertexC * lightBarycentric.z;
+
+        vec3 positionToLightDirection = normalize(lightPosition - extensionPosition);
+
+        vec3 shadowRayOrigin = extensionPosition;
+        vec3 shadowRayDirection = positionToLightDirection;
+        float shadowRayDistance = length(lightPosition - extensionPosition) - 0.001f;
+
+        rayQueryEXT rayQuery;
+        rayQueryInitializeEXT(rayQuery, topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT, 0xFF, shadowRayOrigin, 0.001f, shadowRayDirection, shadowRayDistance);
+      
+        while (rayQueryProceedEXT(rayQuery));
+
+        if (rayQueryGetIntersectionTypeEXT(rayQuery, true) == gl_RayQueryCommittedIntersectionNoneEXT) {
+          indirectColor += vec3(extensionSurfaceColor * lightColor * dot(extensionNormal, positionToLightDirection));
+        }
+      }
+    }
+  }
+  indirectColor /= maxRayDepth;
+
+  vec4 color = vec4(directColor + indirectColor, 1.0);
 
   if (camera.frameCount > 0) {
     vec4 previousColor = imageLoad(image, ivec2(gl_FragCoord.xy));
