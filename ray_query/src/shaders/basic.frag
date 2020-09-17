@@ -113,9 +113,11 @@ void main() {
 
   vec3 rayOrigin = interpolatedPosition;
   vec3 rayDirection = alignedHemisphere;
+  vec3 previousNormal = geometricNormal;
 
-  int maxRayDepth = 16;
-  for (int rayDepth = 0; rayDepth < maxRayDepth; rayDepth++) {
+  bool rayActive = true;
+  int maxRayDepth = 1;
+  for (int rayDepth = 0; rayDepth < maxRayDepth && rayActive; rayDepth++) {
     rayQueryEXT rayQuery;
     rayQueryInitializeEXT(rayQuery, topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT, 0xFF, rayOrigin, 0.001f, rayDirection, 1000.0f);
 
@@ -137,8 +139,8 @@ void main() {
 
       vec3 extensionSurfaceColor = materialBuffer.data[materialIndexBuffer.data[extensionPrimitiveIndex]].diffuse;
 
-      if (gl_PrimitiveID == 40 || gl_PrimitiveID == 41) {
-        indirectColor = materialBuffer.data[materialIndexBuffer.data[gl_PrimitiveID]].emission;
+      if (extensionPrimitiveIndex == 40 || extensionPrimitiveIndex == 41) {
+        indirectColor += materialBuffer.data[materialIndexBuffer.data[extensionPrimitiveIndex]].emission * dot(previousNormal, rayDirection);
       }
       else {
         int randomIndex = int(random(gl_FragCoord.xy, camera.frameCount) * 2 + 40);
@@ -171,9 +173,22 @@ void main() {
         while (rayQueryProceedEXT(rayQuery));
 
         if (rayQueryGetIntersectionTypeEXT(rayQuery, true) == gl_RayQueryCommittedIntersectionNoneEXT) {
-          indirectColor += vec3(extensionSurfaceColor * lightColor * dot(extensionNormal, positionToLightDirection));
+          indirectColor += extensionSurfaceColor * lightColor  * dot(previousNormal, rayDirection) * dot(extensionNormal, positionToLightDirection);
+        }
+        else {
+          rayActive = false;
         }
       }
+
+      vec3 hemisphere = uniformSampleHemisphere(vec2(random(gl_FragCoord.xy, camera.frameCount), random(gl_FragCoord.xy, camera.frameCount + 1)));
+      vec3 alignedHemisphere = alignHemisphereWithCoordinateSystem(hemisphere, extensionNormal);
+
+      rayOrigin = extensionPosition;
+      rayDirection = alignedHemisphere;
+      previousNormal = extensionNormal;
+    }
+    else {
+      rayActive = false;
     }
   }
   indirectColor /= maxRayDepth;
