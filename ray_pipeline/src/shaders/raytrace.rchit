@@ -136,8 +136,6 @@ void main() {
         payload.rayActive = 0;
       }
     }
-
-    payload.rayDepth += 1;
   }
 
   vec3 hemisphere = uniformSampleHemisphere(vec2(random(gl_LaunchIDEXT.xy, camera.frameCount), random(gl_LaunchIDEXT.xy, camera.frameCount + 1)));
@@ -146,4 +144,6 @@ void main() {
   payload.rayOrigin = position;
   payload.rayDirection = alignedHemisphere;
   payload.previousNormal = geometricNormal;
+
+  payload.rayDepth += 1;
 }
