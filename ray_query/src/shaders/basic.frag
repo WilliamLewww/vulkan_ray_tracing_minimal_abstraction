@@ -101,7 +101,7 @@ void main() {
     while (rayQueryProceedEXT(rayQuery));
 
     if (rayQueryGetIntersectionTypeEXT(rayQuery, true) == gl_RayQueryCommittedIntersectionNoneEXT) {
-      directColor = vec3(surfaceColor * lightColor * dot(geometricNormal, positionToLightDirection));
+      directColor = surfaceColor * lightColor * dot(geometricNormal, positionToLightDirection);
     }
     else {
       directColor = vec3(0.0, 0.0, 0.0);
