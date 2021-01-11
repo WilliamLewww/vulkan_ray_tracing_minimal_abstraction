@@ -7,7 +7,7 @@ There are two different sub-projects found in this repository. Both projects use
 **ray_query** uses ray querying in the fragment shader to cast rays.
 
 
-## Important
+## Important (Current 455.46.04)
 
 Make sure the **VK_KHR_ray_tracing** extension is available on your device! You may need to install the Nvidia Vulkan Beta drivers to use the extension.
 
