@@ -1,5 +1,7 @@
 # Vulkan Ray Tracing Minimal Abstraction
 
+# IMPORTANT: currently ONLY ray_querying is up-to-date.
+
 There are two different sub-projects found in this repository. Both projects use a simple global illumination model but they differ in the manner of casting the rays.
 
 **ray_pipeline** uses the ray tracing pipeline with a shader binding table to cast the rays.
