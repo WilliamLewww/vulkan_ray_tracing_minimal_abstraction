@@ -1542,21 +1542,21 @@ void createCommandBuffers(struct VulkanApplication* app) {
     VkDeviceAddress shaderBindingTableBufferDeviceAddress = pvkGetBufferDeviceAddressKHR(app->logicalDevice, &shaderBindingTableBufferDeviceAddressInfo);
 
     const VkStridedDeviceAddressRegionKHR rgenShaderBindingTable = {
-      .deviceAddress = shaderBindingTableBufferDeviceAddress,
-      .stride = progSize,
-      .size = sbtSize 
+      .deviceAddress = shaderBindingTableBufferDeviceAddress + 0u * progSize,
+      .stride = sbtSize,
+      .size = sbtSize * 1
     };
 
     const VkStridedDeviceAddressRegionKHR rmissShaderBindingTable = {
-      .deviceAddress = shaderBindingTableBufferDeviceAddress,
+      .deviceAddress = shaderBindingTableBufferDeviceAddress + 1u * progSize,
       .stride = progSize,
-      .size = sbtSize 
+      .size = sbtSize * 2 
     };
 
     const VkStridedDeviceAddressRegionKHR rchitShaderBindingTable = {
-      .deviceAddress = shaderBindingTableBufferDeviceAddress,
+      .deviceAddress = shaderBindingTableBufferDeviceAddress + 3u * progSize,
       .stride = progSize,
-      .size = sbtSize 
+      .size = sbtSize * 1
     };
 
     const VkStridedDeviceAddressRegionKHR callableShaderBindingTable = {};
