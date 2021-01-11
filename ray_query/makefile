@@ -1,5 +1,5 @@
 GLFW_PATH = /usr/local/glfw/glfw-3.3.2
-VULKAN_SDK_PATH = /usr/local/vulkan/1.2.148.0/x86_64
+VULKAN_SDK_PATH = /usr/local/vulkan/1.2.162.0/x86_64
 
 EXEC = vulkan-c.out
 
