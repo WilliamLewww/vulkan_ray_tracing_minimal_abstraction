@@ -9,7 +9,7 @@ There are two different sub-projects found in this repository. Both projects use
 
 ## Important (Current 455.46.04)
 
-Make sure the **VK_KHR_ray_tracing** extension is available on your device! You may need to install the Nvidia Vulkan Beta drivers to use the extension.
+Make sure the **VK_KHR_ray_query** and  **VK_KHR_ray_tracing_pipeline** extensions are available on your device! You may need to install the Nvidia Vulkan Beta drivers to use the extension.
 
 **Even if you have a compatible RTX graphics card, your drivers may not have the extension available.**
 
