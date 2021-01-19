@@ -1,7 +1,9 @@
 # Vulkan Ray Tracing Minimal Abstraction
 
-![beta-drivers](resources/render_1.png)
-![beta-drivers](resources/render_2.png)
+<p float="left">
+  <img src="resources/render_1.png" width="400">
+  <img src="resources/render_2.png" width="400">
+</p>
 
 There are two different sub-projects found in this repository. Both projects use a simple global illumination model but they differ in the manner of casting the rays.
 
