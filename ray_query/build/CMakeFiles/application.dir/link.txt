@@ -1,0 +1,1 @@
+/usr/bin/cc -g -rdynamic CMakeFiles/application.dir/src/main.c.o -o application  -Wl,-rpath,/usr/local/vulkan/1.2.162.1/x86_64/lib /usr/local/vulkan/1.2.162.1/x86_64/lib/libvulkan.so /usr/lib/libglfw.so.3.3 -lm 

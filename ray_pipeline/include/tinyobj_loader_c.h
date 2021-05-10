@@ -1345,7 +1345,7 @@ int tinyobj_parse_obj(tinyobj_attrib_t *attrib, tinyobj_shape_t **shapes,
     // char *filename = my_strndup(commands[mtllib_line_index].mtllib_name,
     //                             commands[mtllib_line_index].mtllib_name_len);
 
-    char* updatedFilename = (char*)malloc(strlen(file_name));
+    char* updatedFilename = (char*)malloc(strlen(file_name) + 1);
     strcpy(updatedFilename, file_name);
     updatedFilename[strlen(file_name) - 3] = 'm';
     updatedFilename[strlen(file_name) - 2] = 't';

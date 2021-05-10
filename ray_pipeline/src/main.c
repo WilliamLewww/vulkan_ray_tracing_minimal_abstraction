@@ -1282,7 +1282,7 @@ void createDescriptorSets(struct VulkanApplication* app) {
 void createRayTracePipeline(struct VulkanApplication* app) {
   PFN_vkCreateRayTracingPipelinesKHR pvkCreateRayTracingPipelinesKHR = (PFN_vkCreateRayTracingPipelinesKHR)vkGetDeviceProcAddr(app->logicalDevice, "vkCreateRayTracingPipelinesKHR");
 
-  FILE* rgenFile = fopen("bin/raytrace.rgen.spv", "rb");
+  FILE* rgenFile = fopen("shaders/raytrace.rgen.spv", "rb");
   fseek(rgenFile, 0, SEEK_END);
   uint32_t rgenFileSize = ftell(rgenFile);
   fseek(rgenFile, 0, SEEK_SET);
@@ -1291,7 +1291,7 @@ void createRayTracePipeline(struct VulkanApplication* app) {
   fread(rgenFileBuffer, 1, rgenFileSize, rgenFile);
   fclose(rgenFile);
 
-  FILE* rmissFile = fopen("bin/raytrace.rmiss.spv", "rb");
+  FILE* rmissFile = fopen("shaders/raytrace.rmiss.spv", "rb");
   fseek(rmissFile, 0, SEEK_END);
   uint32_t rmissFileSize = ftell(rmissFile);
   fseek(rmissFile, 0, SEEK_SET);
@@ -1300,7 +1300,7 @@ void createRayTracePipeline(struct VulkanApplication* app) {
   fread(rmissFileBuffer, 1, rmissFileSize, rmissFile);
   fclose(rmissFile);
 
-  FILE* rmissShadowFile = fopen("bin/raytrace_shadow.rmiss.spv", "rb");
+  FILE* rmissShadowFile = fopen("shaders/raytrace_shadow.rmiss.spv", "rb");
   fseek(rmissShadowFile, 0, SEEK_END);
   uint32_t rmissShadowFileSize = ftell(rmissShadowFile);
   fseek(rmissShadowFile, 0, SEEK_SET);
@@ -1309,7 +1309,7 @@ void createRayTracePipeline(struct VulkanApplication* app) {
   fread(rmissShadowFileBuffer, 1, rmissShadowFileSize, rmissShadowFile);
   fclose(rmissShadowFile);
 
-  FILE* rchitFile = fopen("bin/raytrace.rchit.spv", "rb");
+  FILE* rchitFile = fopen("shaders/raytrace.rchit.spv", "rb");
   fseek(rchitFile, 0, SEEK_END);
   uint32_t rchitFileSize = ftell(rchitFile);
   fseek(rchitFile, 0, SEEK_SET);
@@ -1937,7 +1937,7 @@ int main(void) {
     .frameCount = 0,
   };
 
-  initializeScene(scene, "res/cube_scene.obj");
+  initializeScene(scene, "resources/cube_scene.obj");
 
   initializeVulkanContext(app);
   pickPhysicalDevice(app);
