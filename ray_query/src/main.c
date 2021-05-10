@@ -143,12 +143,12 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 void readFile(const char* fileName, char** buffer, uint64_t* length) {
   uint64_t stringSize = 0;
   uint64_t readSize = 0;
-  FILE * handler = fopen(fileName, "r");
+  FILE* handler = fopen(fileName, "r");
 
   if (handler) {
     fseek(handler, 0, SEEK_END);
     stringSize = ftell(handler);
-    rewind(handler);
+    fseek(handler, 0, SEEK_SET);
     *buffer = (char*)malloc(sizeof(char) * (stringSize + 1));
     readSize = fread(*buffer, sizeof(char), (size_t)stringSize, handler);
     (*buffer)[stringSize] = '\0';
@@ -1419,7 +1419,7 @@ void createDescriptorSets(struct VulkanApplication* app) {
 }
 
 void createGraphicsPipeline(struct VulkanApplication* app) {
-  FILE* vertexFile = fopen("bin/basic.vert.spv", "rb");
+  FILE* vertexFile = fopen("shaders/basic.vert.spv", "rb");
   fseek(vertexFile, 0, SEEK_END);
   uint32_t vertexFileSize = ftell(vertexFile);
   fseek(vertexFile, 0, SEEK_SET);
@@ -1428,7 +1428,7 @@ void createGraphicsPipeline(struct VulkanApplication* app) {
   fread(vertexFileBuffer, 1, vertexFileSize, vertexFile);
   fclose(vertexFile);
 
-  FILE* fragmentFile = fopen("bin/basic.frag.spv", "rb");
+  FILE* fragmentFile = fopen("shaders/basic.frag.spv", "rb");
   fseek(fragmentFile, 0, SEEK_END);
   uint32_t fragmentFileSize = ftell(fragmentFile);
   fseek(fragmentFile, 0, SEEK_SET);
@@ -2021,7 +2021,7 @@ int main(void) {
     .frameCount = 0,
   };
 
-  initializeScene(scene, "res/cube_scene.obj");
+  initializeScene(scene, "resources/cube_scene.obj");
 
   initializeVulkanContext(app);
   pickPhysicalDevice(app);
