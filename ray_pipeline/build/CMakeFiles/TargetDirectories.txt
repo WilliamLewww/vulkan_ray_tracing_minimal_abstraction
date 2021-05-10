@@ -1,4 +1,0 @@
-/home/wlew/projects/vulkan_ray_tracing_minimal_abstraction/ray_pipeline/build/CMakeFiles/rebuild_cache.dir
-/home/wlew/projects/vulkan_ray_tracing_minimal_abstraction/ray_pipeline/build/CMakeFiles/edit_cache.dir
-/home/wlew/projects/vulkan_ray_tracing_minimal_abstraction/ray_pipeline/build/CMakeFiles/copy_resources.dir
-/home/wlew/projects/vulkan_ray_tracing_minimal_abstraction/ray_pipeline/build/CMakeFiles/application.dir
