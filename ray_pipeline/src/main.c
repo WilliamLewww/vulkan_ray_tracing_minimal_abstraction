@@ -119,7 +119,9 @@ struct VulkanApplication {
 };
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {
-  printf("\033[22;36mvalidation layer\033[0m: \033[22;33m%s\033[0m\n", pCallbackData->pMessage);  
+  if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT || messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+    printf("\033[22;36mvalidation layer\033[0m: \033[22;33m%s\033[0m\n", pCallbackData->pMessage);
+  }
 
   return VK_FALSE;
 }
@@ -564,7 +566,7 @@ void createVertexBuffer(struct VulkanApplication* app, struct Scene* scene) {
   memcpy(positionData, scene->attributes.vertices, positionBufferSize);
   vkUnmapMemory(app->logicalDevice, positionStagingBufferMemory);
 
-  createBuffer(app, positionBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->vertexPositionBuffer, &app->vertexPositionBufferMemory);  
+  createBuffer(app, positionBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->vertexPositionBuffer, &app->vertexPositionBufferMemory);  
 
   copyBuffer(app, positionStagingBuffer, app->vertexPositionBuffer, positionBufferSize);
 
@@ -589,7 +591,7 @@ void createIndexBuffer(struct VulkanApplication* app, struct Scene* scene) {
   memcpy(data, positionIndices, bufferSize);
   vkUnmapMemory(app->logicalDevice, stagingBufferMemory);
 
-  createBuffer(app, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->indexBuffer, &app->indexBufferMemory);
+  createBuffer(app, bufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &app->indexBuffer, &app->indexBufferMemory);
 
   copyBuffer(app, stagingBuffer, app->indexBuffer, bufferSize);
   
@@ -814,7 +816,7 @@ void createBottomLevelAccelerationStructure(struct VulkanApplication* app, struc
     .offset = 0,
     .size = accelerationStructureBuildSizesInfo.accelerationStructureSize,
     .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
-    .deviceAddress = VK_NULL_HANDLE
+    .deviceAddress = 0
   };
 
   pvkCreateAccelerationStructureKHR(app->logicalDevice, &accelerationStructureCreateInfo, NULL, &app->bottomLevelAccelerationStructure);
@@ -899,7 +901,7 @@ void createTopLevelAccelerationStructure(struct VulkanApplication* app) {
 
   VkBuffer geometryInstanceBuffer;
   VkDeviceMemory geometryInstanceBufferMemory;
-  createBuffer(app, geometryInstanceBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &geometryInstanceBuffer, &geometryInstanceBufferMemory);  
+  createBuffer(app, geometryInstanceBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &geometryInstanceBuffer, &geometryInstanceBufferMemory);  
 
   copyBuffer(app, geometryInstanceStagingBuffer, geometryInstanceBuffer, geometryInstanceBufferSize);
 
@@ -994,7 +996,7 @@ void createTopLevelAccelerationStructure(struct VulkanApplication* app) {
     .offset = 0,
     .size = accelerationStructureBuildSizesInfo.accelerationStructureSize,
     .type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
-    .deviceAddress = VK_NULL_HANDLE
+    .deviceAddress = 0
   };
 
   pvkCreateAccelerationStructureKHR(app->logicalDevice, &accelerationStructureCreateInfo, NULL, &app->topLevelAccelerationStructure);
