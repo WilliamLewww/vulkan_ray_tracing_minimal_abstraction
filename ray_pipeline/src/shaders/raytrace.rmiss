@@ -11,8 +11,7 @@ layout(location = 0) rayPayloadInEXT Payload {
   int rayDepth;
 
   int rayActive;
-} payload;
-
-void main() {
-	payload.rayActive = 0;
 }
+payload;
+
+void main() { payload.rayActive = 0; }
