@@ -6,7 +6,7 @@ find_package(glfw3 REQUIRED)
 
 file(GLOB SHADERS "src/shaders/*")
 
-add_executable(application src/main.c)
+add_executable(application src/main.cpp)
 include_directories(application include)
 include_directories(application ${Vulkan_INCLUDE_DIRS})
 include_directories(application ${GLFW_INCLUDE_DIRS})
