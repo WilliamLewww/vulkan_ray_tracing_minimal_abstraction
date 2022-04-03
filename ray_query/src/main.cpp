@@ -1735,6 +1735,253 @@ int main() {
     throwExceptionVulkanAPI(result, "vkWaitForFences");
   }
 
+  struct UniformStructure {
+    float cameraPosition[4] = {0, 0, 0, 0};
+    float cameraRight[4] = {0, 0, 0, 0};
+    float cameraUp[4] = {0, 0, 0, 0};
+    float cameraForward[4] = {0, 0, 0, 0};
+
+    uint32_t frameCount = 0;
+  } uniformStructure;
+
+  VkBufferCreateInfo uniformBufferCreateInfo = {
+      .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+      .pNext = NULL,
+      .flags = 0,
+      .size = sizeof(UniformStructure),
+      .usage =
+          VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+          VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+          VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .queueFamilyIndexCount = 1,
+      .pQueueFamilyIndices = &queueFamilyIndex};
+
+  VkBuffer uniformBufferHandle = VK_NULL_HANDLE;
+  result = vkCreateBuffer(deviceHandle, &uniformBufferCreateInfo, NULL,
+                          &uniformBufferHandle);
+
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkCreateBuffer");
+  }
+
+  VkMemoryRequirements uniformMemoryRequirements;
+  vkGetBufferMemoryRequirements(deviceHandle, uniformBufferHandle,
+                                &uniformMemoryRequirements);
+
+  uint32_t uniformMemoryTypeIndex = -1;
+  for (uint32_t x = 0; x < physicalDeviceMemoryProperties.memoryTypeCount;
+       x++) {
+    if ((uniformMemoryRequirements.memoryTypeBits & (1 << x)) &&
+        (physicalDeviceMemoryProperties.memoryTypes[x].propertyFlags &
+         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) ==
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+
+      uniformMemoryTypeIndex = x;
+      break;
+    }
+  }
+
+  VkMemoryAllocateInfo uniformMemoryAllocateInfo = {
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .pNext = &memoryAllocateFlagsInfo,
+      .allocationSize = uniformMemoryRequirements.size,
+      .memoryTypeIndex = uniformMemoryTypeIndex};
+
+  VkDeviceMemory uniformDeviceMemoryHandle = VK_NULL_HANDLE;
+  result = vkAllocateMemory(deviceHandle, &uniformMemoryAllocateInfo, NULL,
+                            &uniformDeviceMemoryHandle);
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkAllocateMemory");
+  }
+
+  result = vkBindBufferMemory(deviceHandle, uniformBufferHandle,
+                              uniformDeviceMemoryHandle, 0);
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkBindBufferMemory");
+  }
+
+  void *hostUniformMemoryBuffer;
+  result = vkMapMemory(deviceHandle, uniformDeviceMemoryHandle, 0,
+                       sizeof(UniformStructure), 0, &hostUniformMemoryBuffer);
+
+  memcpy(hostUniformMemoryBuffer, &uniformStructure, sizeof(UniformStructure));
+
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkMapMemory");
+  }
+
+  vkUnmapMemory(deviceHandle, uniformDeviceMemoryHandle);
+
+  VkImageCreateInfo rayTraceImageCreateInfo = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+      .pNext = NULL,
+      .flags = 0,
+      .imageType = VK_IMAGE_TYPE_2D,
+      .format = surfaceFormatList[0].format,
+      .extent = {.width = surfaceCapabilities.currentExtent.width,
+                 .height = surfaceCapabilities.currentExtent.height,
+                 .depth = 1},
+      .mipLevels = 1,
+      .arrayLayers = 1,
+      .samples = VK_SAMPLE_COUNT_1_BIT,
+      .tiling = VK_IMAGE_TILING_OPTIMAL,
+      .usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .queueFamilyIndexCount = 1,
+      .pQueueFamilyIndices = &queueFamilyIndex,
+      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+
+  VkImage rayTraceImageHandle = VK_NULL_HANDLE;
+  result = vkCreateImage(deviceHandle, &rayTraceImageCreateInfo, NULL,
+                                  &rayTraceImageHandle);
+
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkCreateImage");
+  }
+
+  VkMemoryRequirements rayTraceImageMemoryRequirements;
+  vkGetImageMemoryRequirements(deviceHandle, rayTraceImageHandle,
+                               &rayTraceImageMemoryRequirements);
+
+  uint32_t rayTraceImageMemoryTypeIndex = -1;
+  for (uint32_t x = 0; x < physicalDeviceMemoryProperties.memoryTypeCount;
+       x++) {
+    if ((rayTraceImageMemoryRequirements.memoryTypeBits & (1 << x)) &&
+        (physicalDeviceMemoryProperties.memoryTypes[x].propertyFlags &
+         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
+
+      rayTraceImageMemoryTypeIndex = x;
+      break;
+    }
+  }
+
+  VkMemoryAllocateInfo rayTraceImageMemoryAllocateInfo = {
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .pNext = NULL,
+      .allocationSize = rayTraceImageMemoryRequirements.size,
+      .memoryTypeIndex = rayTraceImageMemoryTypeIndex};
+
+  VkDeviceMemory rayTraceImageDeviceMemoryHandle = VK_NULL_HANDLE;
+  result = vkAllocateMemory(deviceHandle, &rayTraceImageMemoryAllocateInfo, NULL,
+                            &rayTraceImageDeviceMemoryHandle);
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkAllocateMemory");
+  }
+
+  result = vkBindImageMemory(deviceHandle, rayTraceImageHandle,
+                             rayTraceImageDeviceMemoryHandle, 0);
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkBindImageMemory");
+  }
+
+  VkImageViewCreateInfo rayTraceImageViewCreateInfo = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .pNext = NULL,
+      .flags = 0,
+      .image = rayTraceImageHandle,
+      .viewType = VK_IMAGE_VIEW_TYPE_2D,
+      .format = surfaceFormatList[0].format,
+      .components = {
+        .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .a = VK_COMPONENT_SWIZZLE_IDENTITY
+      },
+      .subresourceRange = {
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = 1
+      }};
+
+  VkImageView rayTraceImageViewHandle = VK_NULL_HANDLE;
+  result = vkCreateImageView(deviceHandle, &rayTraceImageViewCreateInfo,
+                                      NULL, &rayTraceImageViewHandle);
+
+  VkWriteDescriptorSetAccelerationStructureKHR
+      accelerationStructureDescriptorInfo = {
+          .sType =
+              VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+          .pNext = NULL,
+          .accelerationStructureCount = 1,
+          .pAccelerationStructures = &topLevelAccelerationStructureHandle};
+
+  VkWriteDescriptorSet accelerationStructureDescriptorSet = {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = &accelerationStructureDescriptorInfo,
+      .dstSet = 0,
+      .dstBinding = 0,
+      .dstArrayElement = 0,
+      .descriptorCount = 1,
+      .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+      .pImageInfo = NULL,
+      .pBufferInfo = NULL,
+      .pTexelBufferView = NULL};
+
+  VkDescriptorBufferInfo uniformDescriptorInfo = {
+      .buffer = uniformBufferHandle, .offset = 0, .range = VK_WHOLE_SIZE};
+
+  VkWriteDescriptorSet uniformDescriptorSet = {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = NULL,
+      .dstSet = 0,
+      .dstBinding = 1,
+      .dstArrayElement = 0,
+      .descriptorCount = 1,
+      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+      .pImageInfo = NULL,
+      .pBufferInfo = &uniformDescriptorInfo,
+      .pTexelBufferView = NULL};
+
+  VkDescriptorBufferInfo indexDescriptorInfo = {
+      .buffer = indexBufferHandle, .offset = 0, .range = VK_WHOLE_SIZE};
+
+  VkWriteDescriptorSet indexDescriptorSet = {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = NULL,
+      .dstSet = 0,
+      .dstBinding = 2,
+      .dstArrayElement = 0,
+      .descriptorCount = 1,
+      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+      .pImageInfo = NULL,
+      .pBufferInfo = &indexDescriptorInfo,
+      .pTexelBufferView = NULL};
+
+  VkDescriptorBufferInfo vertexDescriptorInfo = {
+      .buffer = vertexBufferHandle, .offset = 0, .range = VK_WHOLE_SIZE};
+
+  VkWriteDescriptorSet vertexDescriptorSet = {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = NULL,
+      .dstSet = 0,
+      .dstBinding = 3,
+      .dstArrayElement = 0,
+      .descriptorCount = 1,
+      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+      .pImageInfo = NULL,
+      .pBufferInfo = &vertexDescriptorInfo,
+      .pTexelBufferView = NULL};
+
+  VkDescriptorImageInfo rayTraceImageDescriptorInfo = {
+      .sampler = VK_NULL_HANDLE,
+      .imageView = rayTraceImageViewHandle,
+      .imageLayout = VK_IMAGE_LAYOUT_GENERAL};
+
+  VkWriteDescriptorSet rayTraceImageDescriptorSet = {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .pNext = NULL,
+      .dstSet = 0,
+      .dstBinding = 4,
+      .dstArrayElement = 0,
+      .descriptorCount = 1,
+      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+      .pImageInfo = &rayTraceImageDescriptorInfo,
+      .pBufferInfo = NULL,
+      .pTexelBufferView = NULL};
+
   for (uint32_t x = 0; x < swapchainImageCount; x++) {
     VkCommandBufferBeginInfo renderCommandBufferBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
