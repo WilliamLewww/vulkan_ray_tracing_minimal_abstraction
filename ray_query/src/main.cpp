@@ -16,8 +16,23 @@
 
 #define PRINT_MESSAGE(stream, message) stream << message << std::endl;
 
+static char keyDownIndex[500];
+
+static float cameraPosition[3];
+static float cameraYaw;
+static float cameraPitch;
+
 void keyCallback(GLFWwindow *windowPtr, int key, int scancode, int action,
-                 int mods) {}
+                 int mods) {
+
+  if (action == GLFW_PRESS) {
+    keyDownIndex[key] = 1;
+  }
+
+  if (action == GLFW_RELEASE) {
+    keyDownIndex[key] = 0;
+  }
+}
 
 VkBool32
 debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -1739,10 +1754,10 @@ int main() {
   }
 
   struct UniformStructure {
-    float cameraPosition[4] = {0, 0, 0, 0};
-    float cameraRight[4] = {0, 0, 0, 0};
-    float cameraUp[4] = {0, 0, 0, 0};
-    float cameraForward[4] = {0, 0, 0, 0};
+    float cameraPosition[4] = {0, 0, 0, 1};
+    float cameraRight[4] = {1, 0, 0, 1};
+    float cameraUp[4] = {0, 1, 0, 1};
+    float cameraForward[4] = {0, 0, 1, 1};
 
     uint32_t frameCount = 0;
   } uniformStructure;
@@ -2454,6 +2469,93 @@ int main() {
 
   while (!glfwWindowShouldClose(windowPtr)) {
     glfwPollEvents();
+
+    bool isCameraMoved = false;
+
+    if (keyDownIndex[GLFW_KEY_W]) {
+      cameraPosition[0] += cos(-cameraYaw - (M_PI / 2)) * 0.1f;
+      cameraPosition[2] += sin(-cameraYaw - (M_PI / 2)) * 0.1f;
+      isCameraMoved = true;
+    }
+    if (keyDownIndex[GLFW_KEY_S]) {
+      cameraPosition[0] -= cos(-cameraYaw - (M_PI / 2)) * 0.1f;
+      cameraPosition[2] -= sin(-cameraYaw - (M_PI / 2)) * 0.1f;
+      isCameraMoved = true;
+    }
+    if (keyDownIndex[GLFW_KEY_A]) {
+      cameraPosition[0] -= cos(-cameraYaw) * 0.1f;
+      cameraPosition[2] -= sin(-cameraYaw) * 0.1f;
+      isCameraMoved = true;
+    }
+    if (keyDownIndex[GLFW_KEY_D]) {
+      cameraPosition[0] += cos(-cameraYaw) * 0.1f;
+      cameraPosition[2] += sin(-cameraYaw) * 0.1f;
+      isCameraMoved = true;
+    }
+    if (keyDownIndex[GLFW_KEY_SPACE]) {
+      cameraPosition[1] += 0.1f;
+      isCameraMoved = true;
+    }
+    if (keyDownIndex[GLFW_KEY_LEFT_CONTROL]) {
+      cameraPosition[1] -= 0.1f;
+      isCameraMoved = true;
+    }
+
+    static double previousMousePositionX;
+    static double previousMousePositionY;
+
+    double xPos, yPos;
+    glfwGetCursorPos(windowPtr, &xPos, &yPos);
+
+    if (previousMousePositionX != xPos || previousMousePositionY != yPos) {
+      double mouseDifferenceX = previousMousePositionX - xPos;
+      double mouseDifferenceY = previousMousePositionY - yPos;
+
+      cameraYaw += mouseDifferenceX * 0.0005f;
+
+      previousMousePositionX = xPos;
+      previousMousePositionY = yPos;
+
+      isCameraMoved = 1;
+    }
+
+    if (isCameraMoved) {
+      uniformStructure.cameraPosition[0] = cameraPosition[0];
+      uniformStructure.cameraPosition[1] = cameraPosition[1];
+      uniformStructure.cameraPosition[2] = cameraPosition[2];
+
+      uniformStructure.cameraForward[0] =
+          cosf(cameraPitch) * cosf(-cameraYaw - (M_PI / 2.0));
+      uniformStructure.cameraForward[1] = sinf(cameraPitch);
+      uniformStructure.cameraForward[2] =
+          cosf(cameraPitch) * sinf(-cameraYaw - (M_PI / 2.0));
+
+      uniformStructure.cameraRight[0] =
+          uniformStructure.cameraForward[1] * uniformStructure.cameraUp[2] -
+          uniformStructure.cameraForward[2] * uniformStructure.cameraUp[1];
+      uniformStructure.cameraRight[1] =
+          uniformStructure.cameraForward[2] * uniformStructure.cameraUp[0] -
+          uniformStructure.cameraForward[0] * uniformStructure.cameraUp[2];
+      uniformStructure.cameraRight[2] =
+          uniformStructure.cameraForward[0] * uniformStructure.cameraUp[1] -
+          uniformStructure.cameraForward[1] * uniformStructure.cameraUp[0];
+
+      uniformStructure.frameCount = 0;
+    } else {
+      uniformStructure.frameCount += 1;
+    }
+
+    result = vkMapMemory(deviceHandle, uniformDeviceMemoryHandle, 0,
+                         sizeof(UniformStructure), 0, &hostUniformMemoryBuffer);
+
+    memcpy(hostUniformMemoryBuffer, &uniformStructure,
+           sizeof(UniformStructure));
+
+    if (result != VK_SUCCESS) {
+      throwExceptionVulkanAPI(result, "vkMapMemory");
+    }
+
+    vkUnmapMemory(deviceHandle, uniformDeviceMemoryHandle);
 
     result = vkWaitForFences(deviceHandle, 1,
                              &imageAvailableFenceHandleList[currentFrame], true,
