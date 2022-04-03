@@ -392,7 +392,8 @@ int main() {
       .imageColorSpace = surfaceFormatList[0].colorSpace,
       .imageExtent = surfaceCapabilities.currentExtent,
       .imageArrayLayers = 1,
-      .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+      .imageUsage =
+          VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
       .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
       .queueFamilyIndexCount = 1,
       .pQueueFamilyIndices = &queueFamilyIndex,
@@ -1896,6 +1897,87 @@ int main() {
   result = vkCreateImageView(deviceHandle, &rayTraceImageViewCreateInfo, NULL,
                              &rayTraceImageViewHandle);
 
+  VkCommandBufferBeginInfo rayTraceImageBarrierCommandBufferBeginInfo = {
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+      .pNext = NULL,
+      .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+      .pInheritanceInfo = NULL};
+
+  result = vkBeginCommandBuffer(commandBufferHandleList.back(),
+                                &rayTraceImageBarrierCommandBufferBeginInfo);
+
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkBeginCommandBuffer");
+  }
+
+  VkImageMemoryBarrier rayTraceGeneralMemoryBarrier = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .pNext = NULL,
+      .srcAccessMask = 0,
+      .dstAccessMask = 0,
+      .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+      .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+      .srcQueueFamilyIndex = queueFamilyIndex,
+      .dstQueueFamilyIndex = queueFamilyIndex,
+      .image = rayTraceImageHandle,
+      .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                           .baseMipLevel = 0,
+                           .levelCount = 1,
+                           .baseArrayLayer = 0,
+                           .layerCount = 1}};
+
+  vkCmdPipelineBarrier(commandBufferHandleList.back(),
+                       VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                       VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL,
+                       1, &rayTraceGeneralMemoryBarrier);
+
+  result = vkEndCommandBuffer(commandBufferHandleList.back());
+
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkEndCommandBuffer");
+  }
+
+  VkSubmitInfo rayTraceImageBarrierAccelerationStructureBuildSubmitInfo = {
+      .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+      .pNext = NULL,
+      .waitSemaphoreCount = 0,
+      .pWaitSemaphores = NULL,
+      .pWaitDstStageMask = NULL,
+      .commandBufferCount = 1,
+      .pCommandBuffers = &commandBufferHandleList.back(),
+      .signalSemaphoreCount = 0,
+      .pSignalSemaphores = NULL};
+
+  VkFenceCreateInfo
+      rayTraceImageBarrierAccelerationStructureBuildFenceCreateInfo = {
+          .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+          .pNext = NULL,
+          .flags = 0};
+
+  VkFence rayTraceImageBarrierAccelerationStructureBuildFenceHandle =
+      VK_NULL_HANDLE;
+  result = vkCreateFence(
+      deviceHandle,
+      &rayTraceImageBarrierAccelerationStructureBuildFenceCreateInfo, NULL,
+      &rayTraceImageBarrierAccelerationStructureBuildFenceHandle);
+
+  result = vkQueueSubmit(
+      queueHandle, 1, &rayTraceImageBarrierAccelerationStructureBuildSubmitInfo,
+      rayTraceImageBarrierAccelerationStructureBuildFenceHandle);
+
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkQueueSubmit");
+  }
+
+  result = vkWaitForFences(
+      deviceHandle, 1,
+      &rayTraceImageBarrierAccelerationStructureBuildFenceHandle, true,
+      UINT32_MAX);
+
+  if (result != VK_SUCCESS && result != VK_TIMEOUT) {
+    throwExceptionVulkanAPI(result, "vkWaitForFences");
+  }
+
   VkWriteDescriptorSetAccelerationStructureKHR
       accelerationStructureDescriptorInfo = {
           .sType =
@@ -2105,8 +2187,8 @@ int main() {
       .memoryTypeIndex = materialMemoryTypeIndex};
 
   VkDeviceMemory materialDeviceMemoryHandle = VK_NULL_HANDLE;
-  result = vkAllocateMemory(deviceHandle, &materialMemoryAllocateInfo,
-                            NULL, &materialDeviceMemoryHandle);
+  result = vkAllocateMemory(deviceHandle, &materialMemoryAllocateInfo, NULL,
+                            &materialDeviceMemoryHandle);
   if (result != VK_SUCCESS) {
     throwExceptionVulkanAPI(result, "vkAllocateMemory");
   }
@@ -2209,6 +2291,109 @@ int main() {
     vkCmdDrawIndexed(commandBufferHandleList[x], indexList.size(), 1, 0, 0, 0);
 
     vkCmdEndRenderPass(commandBufferHandleList[x]);
+
+    VkImageMemoryBarrier swapchainCopyMemoryBarrier = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .pNext = NULL,
+        .srcAccessMask = 0,
+        .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        .srcQueueFamilyIndex = queueFamilyIndex,
+        .dstQueueFamilyIndex = queueFamilyIndex,
+        .image = swapchainImageHandleList[x],
+        .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                             .baseMipLevel = 0,
+                             .levelCount = 1,
+                             .baseArrayLayer = 0,
+                             .layerCount = 1}};
+
+    vkCmdPipelineBarrier(commandBufferHandleList[x],
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0,
+                         NULL, 1, &swapchainCopyMemoryBarrier);
+
+    VkImageMemoryBarrier rayTraceCopyMemoryBarrier = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .pNext = NULL,
+        .srcAccessMask = 0,
+        .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .srcQueueFamilyIndex = queueFamilyIndex,
+        .dstQueueFamilyIndex = queueFamilyIndex,
+        .image = rayTraceImageHandle,
+        .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                             .baseMipLevel = 0,
+                             .levelCount = 1,
+                             .baseArrayLayer = 0,
+                             .layerCount = 1}};
+
+    vkCmdPipelineBarrier(commandBufferHandleList[x],
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0,
+                         NULL, 1, &rayTraceCopyMemoryBarrier);
+
+    VkImageCopy imageCopy = {
+        .srcSubresource = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                           .mipLevel = 0,
+                           .baseArrayLayer = 0,
+                           .layerCount = 1},
+        .srcOffset = {.x = 0, .y = 0, .z = 0},
+        .dstSubresource = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                           .mipLevel = 0,
+                           .baseArrayLayer = 0,
+                           .layerCount = 1},
+        .dstOffset = {.x = 0, .y = 0, .z = 0},
+        .extent = {.width = surfaceCapabilities.currentExtent.width,
+                   .height = surfaceCapabilities.currentExtent.height,
+                   .depth = 1}};
+
+    vkCmdCopyImage(commandBufferHandleList[x], swapchainImageHandleList[x],
+                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, rayTraceImageHandle,
+                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageCopy);
+
+    VkImageMemoryBarrier swapchainPresentMemoryBarrier = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .pNext = NULL,
+        .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+        .dstAccessMask = 0,
+        .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        .srcQueueFamilyIndex = queueFamilyIndex,
+        .dstQueueFamilyIndex = queueFamilyIndex,
+        .image = swapchainImageHandleList[x],
+        .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                             .baseMipLevel = 0,
+                             .levelCount = 1,
+                             .baseArrayLayer = 0,
+                             .layerCount = 1}};
+
+    vkCmdPipelineBarrier(commandBufferHandleList[x],
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0,
+                         NULL, 1, &swapchainPresentMemoryBarrier);
+
+    VkImageMemoryBarrier rayTraceWriteMemoryBarrier = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .pNext = NULL,
+        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .dstAccessMask = 0,
+        .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .srcQueueFamilyIndex = queueFamilyIndex,
+        .dstQueueFamilyIndex = queueFamilyIndex,
+        .image = rayTraceImageHandle,
+        .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                             .baseMipLevel = 0,
+                             .levelCount = 1,
+                             .baseArrayLayer = 0,
+                             .layerCount = 1}};
+
+    vkCmdPipelineBarrier(commandBufferHandleList[x],
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0,
+                         NULL, 1, &rayTraceWriteMemoryBarrier);
 
     result = vkEndCommandBuffer(commandBufferHandleList[x]);
 
