@@ -876,7 +876,8 @@ int main() {
       .usage =
           VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
           VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-          VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+          VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
       .queueFamilyIndexCount = 1,
       .pQueueFamilyIndices = &queueFamilyIndex};
@@ -955,7 +956,8 @@ int main() {
       .usage =
           VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
           VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-          VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+          VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
       .queueFamilyIndexCount = 1,
       .pQueueFamilyIndices = &queueFamilyIndex};
@@ -1749,10 +1751,7 @@ int main() {
       .pNext = NULL,
       .flags = 0,
       .size = sizeof(UniformStructure),
-      .usage =
-          VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-          VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-          VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+      .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
       .queueFamilyIndexCount = 1,
       .pQueueFamilyIndices = &queueFamilyIndex};
@@ -1834,7 +1833,7 @@ int main() {
 
   VkImage rayTraceImageHandle = VK_NULL_HANDLE;
   result = vkCreateImage(deviceHandle, &rayTraceImageCreateInfo, NULL,
-                                  &rayTraceImageHandle);
+                         &rayTraceImageHandle);
 
   if (result != VK_SUCCESS) {
     throwExceptionVulkanAPI(result, "vkCreateImage");
@@ -1849,7 +1848,8 @@ int main() {
        x++) {
     if ((rayTraceImageMemoryRequirements.memoryTypeBits & (1 << x)) &&
         (physicalDeviceMemoryProperties.memoryTypes[x].propertyFlags &
-         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
+         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) ==
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
 
       rayTraceImageMemoryTypeIndex = x;
       break;
@@ -1863,8 +1863,8 @@ int main() {
       .memoryTypeIndex = rayTraceImageMemoryTypeIndex};
 
   VkDeviceMemory rayTraceImageDeviceMemoryHandle = VK_NULL_HANDLE;
-  result = vkAllocateMemory(deviceHandle, &rayTraceImageMemoryAllocateInfo, NULL,
-                            &rayTraceImageDeviceMemoryHandle);
+  result = vkAllocateMemory(deviceHandle, &rayTraceImageMemoryAllocateInfo,
+                            NULL, &rayTraceImageDeviceMemoryHandle);
   if (result != VK_SUCCESS) {
     throwExceptionVulkanAPI(result, "vkAllocateMemory");
   }
@@ -1882,23 +1882,19 @@ int main() {
       .image = rayTraceImageHandle,
       .viewType = VK_IMAGE_VIEW_TYPE_2D,
       .format = surfaceFormatList[0].format,
-      .components = {
-        .r = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .a = VK_COMPONENT_SWIZZLE_IDENTITY
-      },
-      .subresourceRange = {
-        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .baseMipLevel = 0,
-        .levelCount = 1,
-        .baseArrayLayer = 0,
-        .layerCount = 1
-      }};
+      .components = {.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                     .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                     .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                     .a = VK_COMPONENT_SWIZZLE_IDENTITY},
+      .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                           .baseMipLevel = 0,
+                           .levelCount = 1,
+                           .baseArrayLayer = 0,
+                           .layerCount = 1}};
 
   VkImageView rayTraceImageViewHandle = VK_NULL_HANDLE;
-  result = vkCreateImageView(deviceHandle, &rayTraceImageViewCreateInfo,
-                                      NULL, &rayTraceImageViewHandle);
+  result = vkCreateImageView(deviceHandle, &rayTraceImageViewCreateInfo, NULL,
+                             &rayTraceImageViewHandle);
 
   VkWriteDescriptorSetAccelerationStructureKHR
       accelerationStructureDescriptorInfo = {
@@ -1908,79 +1904,263 @@ int main() {
           .accelerationStructureCount = 1,
           .pAccelerationStructures = &topLevelAccelerationStructureHandle};
 
-  VkWriteDescriptorSet accelerationStructureDescriptorSet = {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .pNext = &accelerationStructureDescriptorInfo,
-      .dstSet = 0,
-      .dstBinding = 0,
-      .dstArrayElement = 0,
-      .descriptorCount = 1,
-      .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
-      .pImageInfo = NULL,
-      .pBufferInfo = NULL,
-      .pTexelBufferView = NULL};
-
   VkDescriptorBufferInfo uniformDescriptorInfo = {
       .buffer = uniformBufferHandle, .offset = 0, .range = VK_WHOLE_SIZE};
-
-  VkWriteDescriptorSet uniformDescriptorSet = {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .pNext = NULL,
-      .dstSet = 0,
-      .dstBinding = 1,
-      .dstArrayElement = 0,
-      .descriptorCount = 1,
-      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-      .pImageInfo = NULL,
-      .pBufferInfo = &uniformDescriptorInfo,
-      .pTexelBufferView = NULL};
 
   VkDescriptorBufferInfo indexDescriptorInfo = {
       .buffer = indexBufferHandle, .offset = 0, .range = VK_WHOLE_SIZE};
 
-  VkWriteDescriptorSet indexDescriptorSet = {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .pNext = NULL,
-      .dstSet = 0,
-      .dstBinding = 2,
-      .dstArrayElement = 0,
-      .descriptorCount = 1,
-      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-      .pImageInfo = NULL,
-      .pBufferInfo = &indexDescriptorInfo,
-      .pTexelBufferView = NULL};
-
   VkDescriptorBufferInfo vertexDescriptorInfo = {
       .buffer = vertexBufferHandle, .offset = 0, .range = VK_WHOLE_SIZE};
-
-  VkWriteDescriptorSet vertexDescriptorSet = {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .pNext = NULL,
-      .dstSet = 0,
-      .dstBinding = 3,
-      .dstArrayElement = 0,
-      .descriptorCount = 1,
-      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-      .pImageInfo = NULL,
-      .pBufferInfo = &vertexDescriptorInfo,
-      .pTexelBufferView = NULL};
 
   VkDescriptorImageInfo rayTraceImageDescriptorInfo = {
       .sampler = VK_NULL_HANDLE,
       .imageView = rayTraceImageViewHandle,
       .imageLayout = VK_IMAGE_LAYOUT_GENERAL};
 
-  VkWriteDescriptorSet rayTraceImageDescriptorSet = {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+  std::vector<VkWriteDescriptorSet> writeDescriptorSetList = {
+      {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+       .pNext = &accelerationStructureDescriptorInfo,
+       .dstSet = descriptorSetHandleList[0],
+       .dstBinding = 0,
+       .dstArrayElement = 0,
+       .descriptorCount = 1,
+       .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+       .pImageInfo = NULL,
+       .pBufferInfo = NULL,
+       .pTexelBufferView = NULL},
+      {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+       .pNext = NULL,
+       .dstSet = descriptorSetHandleList[0],
+       .dstBinding = 1,
+       .dstArrayElement = 0,
+       .descriptorCount = 1,
+       .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+       .pImageInfo = NULL,
+       .pBufferInfo = &uniformDescriptorInfo,
+       .pTexelBufferView = NULL},
+      {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+       .pNext = NULL,
+       .dstSet = descriptorSetHandleList[0],
+       .dstBinding = 2,
+       .dstArrayElement = 0,
+       .descriptorCount = 1,
+       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+       .pImageInfo = NULL,
+       .pBufferInfo = &indexDescriptorInfo,
+       .pTexelBufferView = NULL},
+      {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+       .pNext = NULL,
+       .dstSet = descriptorSetHandleList[0],
+       .dstBinding = 3,
+       .dstArrayElement = 0,
+       .descriptorCount = 1,
+       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+       .pImageInfo = NULL,
+       .pBufferInfo = &vertexDescriptorInfo,
+       .pTexelBufferView = NULL},
+      {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+       .pNext = NULL,
+       .dstSet = descriptorSetHandleList[0],
+       .dstBinding = 4,
+       .dstArrayElement = 0,
+       .descriptorCount = 1,
+       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+       .pImageInfo = &rayTraceImageDescriptorInfo,
+       .pBufferInfo = NULL,
+       .pTexelBufferView = NULL}};
+
+  vkUpdateDescriptorSets(deviceHandle, writeDescriptorSetList.size(),
+                         writeDescriptorSetList.data(), 0, NULL);
+
+  std::vector<uint32_t> materialIndexList;
+  for (tinyobj::shape_t shape : shapes) {
+    for (int index : shape.mesh.material_ids) {
+      materialIndexList.push_back(index);
+    }
+  }
+
+  VkBufferCreateInfo materialIndexBufferCreateInfo = {
+      .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
       .pNext = NULL,
-      .dstSet = 0,
-      .dstBinding = 4,
-      .dstArrayElement = 0,
-      .descriptorCount = 1,
-      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-      .pImageInfo = &rayTraceImageDescriptorInfo,
-      .pBufferInfo = NULL,
-      .pTexelBufferView = NULL};
+      .flags = 0,
+      .size = sizeof(uint32_t) * materialIndexList.size(),
+      .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .queueFamilyIndexCount = 1,
+      .pQueueFamilyIndices = &queueFamilyIndex};
+
+  VkBuffer materialIndexBufferHandle = VK_NULL_HANDLE;
+  result = vkCreateBuffer(deviceHandle, &materialIndexBufferCreateInfo, NULL,
+                          &materialIndexBufferHandle);
+
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkCreateBuffer");
+  }
+
+  VkMemoryRequirements materialIndexMemoryRequirements;
+  vkGetBufferMemoryRequirements(deviceHandle, materialIndexBufferHandle,
+                                &materialIndexMemoryRequirements);
+
+  uint32_t materialIndexMemoryTypeIndex = -1;
+  for (uint32_t x = 0; x < physicalDeviceMemoryProperties.memoryTypeCount;
+       x++) {
+    if ((materialIndexMemoryRequirements.memoryTypeBits & (1 << x)) &&
+        (physicalDeviceMemoryProperties.memoryTypes[x].propertyFlags &
+         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) ==
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+
+      materialIndexMemoryTypeIndex = x;
+      break;
+    }
+  }
+
+  VkMemoryAllocateInfo materialIndexMemoryAllocateInfo = {
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .pNext = &memoryAllocateFlagsInfo,
+      .allocationSize = materialIndexMemoryRequirements.size,
+      .memoryTypeIndex = materialIndexMemoryTypeIndex};
+
+  VkDeviceMemory materialIndexDeviceMemoryHandle = VK_NULL_HANDLE;
+  result = vkAllocateMemory(deviceHandle, &materialIndexMemoryAllocateInfo,
+                            NULL, &materialIndexDeviceMemoryHandle);
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkAllocateMemory");
+  }
+
+  result = vkBindBufferMemory(deviceHandle, materialIndexBufferHandle,
+                              materialIndexDeviceMemoryHandle, 0);
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkBindBufferMemory");
+  }
+
+  void *hostMaterialIndexMemoryBuffer;
+  result = vkMapMemory(deviceHandle, materialIndexDeviceMemoryHandle, 0,
+                       sizeof(uint32_t) * materialIndexList.size(), 0,
+                       &hostMaterialIndexMemoryBuffer);
+
+  memcpy(hostMaterialIndexMemoryBuffer, materialIndexList.data(),
+         sizeof(uint32_t) * materialIndexList.size());
+
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkMapMemory");
+  }
+
+  vkUnmapMemory(deviceHandle, materialIndexDeviceMemoryHandle);
+
+  struct Material {
+    float ambient[4] = {0, 0, 0, 0};
+    float diffuse[4] = {0, 0, 0, 0};
+    float specular[4] = {0, 0, 0, 0};
+    float emission[4] = {0, 0, 0, 0};
+  };
+
+  std::vector<Material> materialList(materials.size());
+  for (uint32_t x = 0; x < materials.size(); x++) {
+    memcpy(materialList[x].ambient, materials[x].ambient, sizeof(float) * 3);
+    memcpy(materialList[x].diffuse, materials[x].diffuse, sizeof(float) * 3);
+    memcpy(materialList[x].specular, materials[x].specular, sizeof(float) * 3);
+    memcpy(materialList[x].emission, materials[x].emission, sizeof(float) * 3);
+  }
+
+  VkBufferCreateInfo materialBufferCreateInfo = {
+      .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+      .pNext = NULL,
+      .flags = 0,
+      .size = sizeof(Material) * materialList.size(),
+      .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .queueFamilyIndexCount = 1,
+      .pQueueFamilyIndices = &queueFamilyIndex};
+
+  VkBuffer materialBufferHandle = VK_NULL_HANDLE;
+  result = vkCreateBuffer(deviceHandle, &materialBufferCreateInfo, NULL,
+                          &materialBufferHandle);
+
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkCreateBuffer");
+  }
+
+  VkMemoryRequirements materialMemoryRequirements;
+  vkGetBufferMemoryRequirements(deviceHandle, materialBufferHandle,
+                                &materialMemoryRequirements);
+
+  uint32_t materialMemoryTypeIndex = -1;
+  for (uint32_t x = 0; x < physicalDeviceMemoryProperties.memoryTypeCount;
+       x++) {
+    if ((materialMemoryRequirements.memoryTypeBits & (1 << x)) &&
+        (physicalDeviceMemoryProperties.memoryTypes[x].propertyFlags &
+         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) ==
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+
+      materialMemoryTypeIndex = x;
+      break;
+    }
+  }
+
+  VkMemoryAllocateInfo materialMemoryAllocateInfo = {
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .pNext = &memoryAllocateFlagsInfo,
+      .allocationSize = materialMemoryRequirements.size,
+      .memoryTypeIndex = materialMemoryTypeIndex};
+
+  VkDeviceMemory materialDeviceMemoryHandle = VK_NULL_HANDLE;
+  result = vkAllocateMemory(deviceHandle, &materialMemoryAllocateInfo,
+                            NULL, &materialDeviceMemoryHandle);
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkAllocateMemory");
+  }
+
+  result = vkBindBufferMemory(deviceHandle, materialBufferHandle,
+                              materialDeviceMemoryHandle, 0);
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkBindBufferMemory");
+  }
+
+  void *hostMaterialMemoryBuffer;
+  result = vkMapMemory(deviceHandle, materialDeviceMemoryHandle, 0,
+                       sizeof(Material) * materialList.size(), 0,
+                       &hostMaterialMemoryBuffer);
+
+  memcpy(hostMaterialMemoryBuffer, materialList.data(),
+         sizeof(Material) * materialList.size());
+
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkMapMemory");
+  }
+
+  vkUnmapMemory(deviceHandle, materialDeviceMemoryHandle);
+
+  VkDescriptorBufferInfo materialIndexDescriptorInfo = {
+      .buffer = materialIndexBufferHandle, .offset = 0, .range = VK_WHOLE_SIZE};
+
+  VkDescriptorBufferInfo materialDescriptorInfo = {
+      .buffer = materialBufferHandle, .offset = 0, .range = VK_WHOLE_SIZE};
+
+  std::vector<VkWriteDescriptorSet> materialWriteDescriptorSetList = {
+      {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+       .pNext = NULL,
+       .dstSet = descriptorSetHandleList[1],
+       .dstBinding = 0,
+       .dstArrayElement = 0,
+       .descriptorCount = 1,
+       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+       .pImageInfo = NULL,
+       .pBufferInfo = &materialIndexDescriptorInfo,
+       .pTexelBufferView = NULL},
+      {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+       .pNext = NULL,
+       .dstSet = descriptorSetHandleList[1],
+       .dstBinding = 1,
+       .dstArrayElement = 0,
+       .descriptorCount = 1,
+       .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+       .pImageInfo = NULL,
+       .pBufferInfo = &materialDescriptorInfo,
+       .pTexelBufferView = NULL}};
+
+  vkUpdateDescriptorSets(deviceHandle, materialWriteDescriptorSetList.size(),
+                         materialWriteDescriptorSetList.data(), 0, NULL);
 
   for (uint32_t x = 0; x < swapchainImageCount; x++) {
     VkCommandBufferBeginInfo renderCommandBufferBeginInfo = {
