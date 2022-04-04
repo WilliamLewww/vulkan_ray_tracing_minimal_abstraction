@@ -435,20 +435,31 @@ int main() {
        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-       .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR}};
+       .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR},
+      {.flags = 0,
+       .format = VK_FORMAT_D32_SFLOAT,
+       .samples = VK_SAMPLE_COUNT_1_BIT,
+       .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+       .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+       .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+       .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+       .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+       .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}};
 
   std::vector<VkAttachmentReference> attachmentReferenceList = {
-      {.attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL}};
+      {.attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
+      {.attachment = 1,
+       .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}};
 
   VkSubpassDescription subpassDescription = {
       .flags = 0,
       .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
       .inputAttachmentCount = 0,
       .pInputAttachments = NULL,
-      .colorAttachmentCount = (uint32_t)attachmentReferenceList.size(),
-      .pColorAttachments = attachmentReferenceList.data(),
+      .colorAttachmentCount = 1,
+      .pColorAttachments = &attachmentReferenceList[0],
       .pResolveAttachments = NULL,
-      .pDepthStencilAttachment = NULL,
+      .pDepthStencilAttachment = &attachmentReferenceList[1],
       .preserveAttachmentCount = 0,
       .pPreserveAttachments = NULL};
 
@@ -490,6 +501,13 @@ int main() {
 
   std::vector<VkImageView> swapchainImageViewHandleList(swapchainImageCount,
                                                         VK_NULL_HANDLE);
+
+  std::vector<VkImage> depthImageHandleList(swapchainImageCount,
+                                            VK_NULL_HANDLE);
+
+  std::vector<VkImageView> depthImageViewHandleList(swapchainImageCount,
+                                                    VK_NULL_HANDLE);
+
   std::vector<VkFramebuffer> framebufferHandleList(swapchainImageCount,
                                                    VK_NULL_HANDLE);
 
@@ -514,13 +532,102 @@ int main() {
       throwExceptionVulkanAPI(result, "vkCreateImageView");
     }
 
+    VkImageCreateInfo depthImageCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext = NULL,
+        .flags = 0,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = VK_FORMAT_D32_SFLOAT,
+        .extent = {.width = surfaceCapabilities.currentExtent.width,
+                   .height = surfaceCapabilities.currentExtent.height,
+                   .depth = 1},
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 1,
+        .pQueueFamilyIndices = &queueFamilyIndex,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+
+    result = vkCreateImage(deviceHandle, &depthImageCreateInfo, NULL,
+                           &depthImageHandleList[x]);
+
+    if (result != VK_SUCCESS) {
+      throwExceptionVulkanAPI(result, "vkCreateImage");
+    }
+
+    VkMemoryRequirements depthImageMemoryRequirements;
+    vkGetImageMemoryRequirements(deviceHandle, depthImageHandleList[x],
+                                 &depthImageMemoryRequirements);
+
+    uint32_t depthImageMemoryTypeIndex = -1;
+    for (uint32_t x = 0; x < physicalDeviceMemoryProperties.memoryTypeCount;
+         x++) {
+      if ((depthImageMemoryRequirements.memoryTypeBits & (1 << x)) &&
+          (physicalDeviceMemoryProperties.memoryTypes[x].propertyFlags &
+           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) ==
+              VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
+
+        depthImageMemoryTypeIndex = x;
+        break;
+      }
+    }
+
+    VkMemoryAllocateInfo depthImageMemoryAllocateInfo = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = NULL,
+        .allocationSize = depthImageMemoryRequirements.size,
+        .memoryTypeIndex = depthImageMemoryTypeIndex};
+
+    VkDeviceMemory depthImageDeviceMemoryHandle = VK_NULL_HANDLE;
+    result = vkAllocateMemory(deviceHandle, &depthImageMemoryAllocateInfo, NULL,
+                              &depthImageDeviceMemoryHandle);
+    if (result != VK_SUCCESS) {
+      throwExceptionVulkanAPI(result, "vkAllocateMemory");
+    }
+
+    result = vkBindImageMemory(deviceHandle, depthImageHandleList[x],
+                               depthImageDeviceMemoryHandle, 0);
+    if (result != VK_SUCCESS) {
+      throwExceptionVulkanAPI(result, "vkBindImageMemory");
+    }
+
+    VkImageViewCreateInfo depthImageViewCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .pNext = NULL,
+        .flags = 0,
+        .image = depthImageHandleList[x],
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = VK_FORMAT_D32_SFLOAT,
+        .components = {.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                       .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                       .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                       .a = VK_COMPONENT_SWIZZLE_IDENTITY},
+        .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+                             .baseMipLevel = 0,
+                             .levelCount = 1,
+                             .baseArrayLayer = 0,
+                             .layerCount = 1}};
+
+    result = vkCreateImageView(deviceHandle, &depthImageViewCreateInfo, NULL,
+                               &depthImageViewHandleList[x]);
+
+    if (result != VK_SUCCESS) {
+      throwExceptionVulkanAPI(result, "vkCreateImageView");
+    }
+
+    std::vector<VkImageView> imageViewHandleList = {
+        swapchainImageViewHandleList[x], depthImageViewHandleList[x]};
+
     VkFramebufferCreateInfo framebufferCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
         .pNext = NULL,
         .flags = 0,
         .renderPass = renderPassHandle,
-        .attachmentCount = 1,
-        .pAttachments = &swapchainImageViewHandleList[x],
+        .attachmentCount = 2,
+        .pAttachments = imageViewHandleList.data(),
         .width = surfaceCapabilities.currentExtent.width,
         .height = surfaceCapabilities.currentExtent.height,
         .layers = 1};
@@ -760,9 +867,9 @@ int main() {
 
   VkViewport viewport = {
       .x = 0,
-      .y = 0,
+      .y = (float)surfaceCapabilities.currentExtent.height,
       .width = (float)surfaceCapabilities.currentExtent.width,
-      .height = (float)surfaceCapabilities.currentExtent.height,
+      .height = -(float)surfaceCapabilities.currentExtent.height,
       .minDepth = 0,
       .maxDepth = 1};
 
@@ -815,6 +922,20 @@ int main() {
       .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT};
 
+  VkPipelineDepthStencilStateCreateInfo pipelineDepthStencilStateCreateInfo = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+      .pNext = NULL,
+      .flags = 0,
+      .depthTestEnable = VK_TRUE,
+      .depthWriteEnable = VK_TRUE,
+      .depthCompareOp = VK_COMPARE_OP_LESS,
+      .depthBoundsTestEnable = VK_FALSE,
+      .stencilTestEnable = VK_FALSE,
+      .front = {},
+      .back = {},
+      .minDepthBounds = 0.0,
+      .maxDepthBounds = 1.0};
+
   VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
       .pNext = NULL,
@@ -837,7 +958,7 @@ int main() {
       .pViewportState = &pipelineViewportStateCreateInfo,
       .pRasterizationState = &pipelineRasterizationStateCreateInfo,
       .pMultisampleState = &pipelineMultisampleStateCreateInfo,
-      .pDepthStencilState = NULL,
+      .pDepthStencilState = &pipelineDepthStencilStateCreateInfo,
       .pColorBlendState = &pipelineColorBlendStateCreateInfo,
       .pDynamicState = NULL,
       .layout = pipelineLayoutHandle,
@@ -1912,6 +2033,10 @@ int main() {
   result = vkCreateImageView(deviceHandle, &rayTraceImageViewCreateInfo, NULL,
                              &rayTraceImageViewHandle);
 
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkCreateImageView");
+  }
+
   VkCommandBufferBeginInfo rayTraceImageBarrierCommandBufferBeginInfo = {
       .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
       .pNext = NULL,
@@ -2274,7 +2399,7 @@ int main() {
     }
 
     std::vector<VkClearValue> clearValueList = {
-        {.color = {0.0, 0.0, 0.0, 0.0}}};
+        {.color = {0.0f, 0.0f, 0.0f, 1.0f}}, {.depthStencil = {1.0f, 0}}};
 
     VkRenderPassBeginInfo renderPassBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
