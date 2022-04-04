@@ -127,6 +127,7 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
               VkDebugUtilsMessageTypeFlagsEXT messageType,
               const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
               void *pUserData) {
+
   if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT ||
       messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
     printf("\033[22;36mvalidation layer\033[0m: \033[22;33m%s\033[0m\n",
@@ -138,9 +139,11 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 
 void keyCallback(GLFWwindow *window, int key, int scancode, int action,
                  int mods) {
+
   if (action == GLFW_PRESS) {
     keyDownIndex[key] = 1;
   }
+
   if (action == GLFW_RELEASE) {
     keyDownIndex[key] = 0;
   }
@@ -172,6 +175,7 @@ void createBuffer(struct VulkanApplication *app, VkDeviceSize size,
                   VkBufferUsageFlags usageFlags,
                   VkMemoryPropertyFlags propertyFlags, VkBuffer *buffer,
                   VkDeviceMemory *bufferMemory) {
+
   VkBufferCreateInfo bufferCreateInfo = {};
   bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
   bufferCreateInfo.size = size;
@@ -212,6 +216,7 @@ void createBuffer(struct VulkanApplication *app, VkDeviceSize size,
 
 void copyBuffer(struct VulkanApplication *app, VkBuffer srcBuffer,
                 VkBuffer dstBuffer, VkDeviceSize size) {
+
   VkCommandBufferAllocateInfo bufferAllocateInfo = {};
   bufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
   bufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -248,6 +253,7 @@ void createImage(struct VulkanApplication *app, uint32_t width, uint32_t height,
                  VkImageUsageFlags usageFlags,
                  VkMemoryPropertyFlags propertyFlags, VkImage *image,
                  VkDeviceMemory *imageMemory) {
+
   VkImageCreateInfo imageCreateInfo = {};
   imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
   imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;

@@ -20,7 +20,8 @@ foreach(SHADER ${SHADERS})
 
 	add_custom_command(
 		OUTPUT shaders/${SHADER_NAME}.spv
-		COMMAND ${Vulkan_GLSLC_EXECUTABLE} ${SHADER} --target-env=vulkan1.2 -o shaders/${SHADER_NAME}.spv
+    COMMAND ${Vulkan_GLSLANG_VALIDATOR_EXECUTABLE} --target-env vulkan1.2 -o
+        shaders/${SHADER_NAME}.spv ${SHADER}
 		DEPENDS ${SHADER}
 	)
 	target_sources(application PRIVATE shaders/${SHADER_NAME}.spv)
