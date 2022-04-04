@@ -4,7 +4,7 @@ project(vulkan_ray_tracing_minimal_abstraction)
 find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
 
-file(GLOB SHADERS "src/shaders/*")
+file(GLOB SHADERS "src/shader.vert" "src/shader.frag")
 
 add_executable(application src/main.cpp)
 include_directories(application include)
