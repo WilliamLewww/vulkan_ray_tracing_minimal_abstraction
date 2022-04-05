@@ -29,7 +29,7 @@ payload;
 layout(location = 1) rayPayloadEXT bool isShadow;
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(binding = 2, set = 0) uniform Camera {
+layout(binding = 1, set = 0) uniform Camera {
   vec4 position;
   vec4 right;
   vec4 up;
@@ -39,9 +39,9 @@ layout(binding = 2, set = 0) uniform Camera {
 }
 camera;
 
-layout(binding = 3, set = 0) buffer IndexBuffer { uint data[]; }
+layout(binding = 2, set = 0) buffer IndexBuffer { uint data[]; }
 indexBuffer;
-layout(binding = 4, set = 0) buffer VertexBuffer { float data[]; }
+layout(binding = 3, set = 0) buffer VertexBuffer { float data[]; }
 vertexBuffer;
 
 layout(binding = 0, set = 1) buffer MaterialIndexBuffer { uint data[]; }

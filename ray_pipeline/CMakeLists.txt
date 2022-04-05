@@ -4,9 +4,13 @@ project(vulkan_ray_tracing_minimal_abstraction)
 find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
 
-file(GLOB SHADERS "src/shaders/*")
+file(GLOB SHADERS 
+  "src/shader.rchit" 
+  "src/shader.rgen" 
+  "src/shader.rmiss" 
+  "src/shader_shadow.rmiss")
 
-add_executable(application src/main.c)
+add_executable(application src/main.cpp)
 include_directories(application include)
 include_directories(application ${Vulkan_INCLUDE_DIRS})
 include_directories(application ${GLFW_INCLUDE_DIRS})
