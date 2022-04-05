@@ -544,7 +544,6 @@ int main() {
     throwExceptionVulkanAPI(result, "vkGetSwapchainImagesKHR");
   }
 
-
   // =========================================================================
   // Swapchain Image Views, Depth Images, Framebuffers
 
@@ -2660,7 +2659,6 @@ int main() {
       throwExceptionVulkanAPI(result, "vkEndCommandBuffer");
     }
   }
-
 
   // =========================================================================
   // Fences, Semaphores 
