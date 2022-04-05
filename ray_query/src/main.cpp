@@ -74,12 +74,18 @@ void throwExceptionMessage(std::string message) {
 int main() {
   VkResult result;
 
+  // =========================================================================
+  // GLFW, Window
+
   glfwInit();
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
   GLFWwindow *windowPtr = glfwCreateWindow(800, 600, "Vulkan", NULL, NULL);
   glfwSetInputMode(windowPtr, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
   glfwSetKeyCallback(windowPtr, keyCallback);
+
+  // =========================================================================
+  // Vulkan Instance
 
   std::vector<VkValidationFeatureEnableEXT> validationFeatureEnableList = {
       // VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
@@ -157,6 +163,9 @@ int main() {
     throwExceptionVulkanAPI(result, "vkCreateInstance");
   }
 
+  // =========================================================================
+  // Window Surface
+
   VkSurfaceKHR surfaceHandle = VK_NULL_HANDLE;
   result =
       glfwCreateWindowSurface(instanceHandle, windowPtr, NULL, &surfaceHandle);
@@ -164,6 +173,9 @@ int main() {
   if (result != VK_SUCCESS) {
     throwExceptionVulkanAPI(result, "glfwCreateWindowSurface");
   }
+
+  // =========================================================================
+  // Physical Device
 
   uint32_t physicalDeviceCount = 0;
   result =
@@ -193,6 +205,9 @@ int main() {
 
   std::cout << physicalDeviceProperties.deviceName << std::endl;
 
+  // =========================================================================
+  // Physical Device Features
+
   VkPhysicalDeviceBufferDeviceAddressFeatures
       physicalDeviceBufferDeviceAddressFeatures = {
           .sType =
@@ -219,6 +234,9 @@ int main() {
       .rayQuery = VK_TRUE};
 
   VkPhysicalDeviceFeatures deviceFeatures = {.geometryShader = VK_TRUE};
+
+  // =========================================================================
+  // Physical Device Submission Queue Families
 
   uint32_t queueFamilyPropertyCount = 0;
   vkGetPhysicalDeviceQueueFamilyProperties(activePhysicalDeviceHandle,
@@ -259,6 +277,9 @@ int main() {
       .queueCount = 1,
       .pQueuePriorities = queuePrioritiesList.data()};
 
+  // =========================================================================
+  // Logical Device
+
   std::vector<const char *> deviceExtensionList = {
       "VK_KHR_ray_query",
       "VK_KHR_spirv_1_4",
@@ -290,8 +311,14 @@ int main() {
     throwExceptionVulkanAPI(result, "vkCreateDevice");
   }
 
+  // =========================================================================
+  // Submission Queue
+
   VkQueue queueHandle = VK_NULL_HANDLE;
   vkGetDeviceQueue(deviceHandle, queueFamilyIndex, 0, &queueHandle);
+
+  // =========================================================================
+  // Device Pointer Functions
 
   PFN_vkGetBufferDeviceAddressKHR pvkGetBufferDeviceAddressKHR =
       (PFN_vkGetBufferDeviceAddressKHR)vkGetDeviceProcAddr(
@@ -321,6 +348,9 @@ int main() {
       .flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT,
       .deviceMask = 0};
 
+  // =========================================================================
+  // Command Pool
+
   VkCommandPoolCreateInfo commandPoolCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
       .pNext = NULL,
@@ -334,6 +364,9 @@ int main() {
   if (result != VK_SUCCESS) {
     throwExceptionVulkanAPI(result, "vkCreateCommandPool");
   }
+
+  // =========================================================================
+  // Command Buffers
 
   VkCommandBufferAllocateInfo commandBufferAllocateInfo = {
       .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -351,6 +384,9 @@ int main() {
   if (result != VK_SUCCESS) {
     throwExceptionVulkanAPI(result, "vkAllocateCommandBuffers");
   }
+
+  // =========================================================================
+  // Surface Features
 
   VkSurfaceCapabilitiesKHR surfaceCapabilities;
   result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
@@ -397,6 +433,9 @@ int main() {
                             "vkGetPhysicalDeviceSurfacePresentModesKHR");
   }
 
+  // =========================================================================
+  // Swapchain
+
   VkSwapchainCreateInfoKHR swapchainCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
       .pNext = NULL,
@@ -425,6 +464,9 @@ int main() {
   if (result != VK_SUCCESS) {
     throwExceptionVulkanAPI(result, "vkCreateSwapchainKHR");
   }
+
+  // =========================================================================
+  // Render Pass
 
   std::vector<VkAttachmentDescription> attachmentDescriptionList = {
       {.flags = 0,
@@ -482,6 +524,9 @@ int main() {
     throwExceptionVulkanAPI(result, "vkCreateRenderPass");
   }
 
+  // =========================================================================
+  // Swapchain Images
+
   uint32_t swapchainImageCount = 0;
   result = vkGetSwapchainImagesKHR(deviceHandle, swapchainHandle,
                                    &swapchainImageCount, NULL);
@@ -498,6 +543,9 @@ int main() {
   if (result != VK_SUCCESS) {
     throwExceptionVulkanAPI(result, "vkGetSwapchainImagesKHR");
   }
+
+  // =========================================================================
+  // Swapchain Image Views, Depth Images, Framebuffers
 
   std::vector<VkImageView> swapchainImageViewHandleList(swapchainImageCount,
                                                         VK_NULL_HANDLE);
@@ -640,6 +688,9 @@ int main() {
     }
   }
 
+  // =========================================================================
+  // Descriptor Pool 
+
   std::vector<VkDescriptorPoolSize> descriptorPoolSizeList = {
       {.type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
        .descriptorCount = 1},
@@ -662,6 +713,9 @@ int main() {
   if (result != VK_SUCCESS) {
     throwExceptionVulkanAPI(result, "vkCreateDescriptorPool");
   }
+
+  // =========================================================================
+  // Descriptor Set Layout
 
   std::vector<VkDescriptorSetLayoutBinding> descriptorSetLayoutBindingList = {
       {.binding = 0,
@@ -706,6 +760,9 @@ int main() {
     throwExceptionVulkanAPI(result, "vkCreateDescriptorSetLayout");
   }
 
+  // =========================================================================
+  // Material Descriptor Set Layout
+
   std::vector<VkDescriptorSetLayoutBinding>
       materialDescriptorSetLayoutBindingList = {
           {.binding = 0,
@@ -737,6 +794,9 @@ int main() {
     throwExceptionVulkanAPI(result, "vkCreateDescriptorSetLayout");
   }
 
+  // =========================================================================
+  // Allocate Descriptor Sets
+ 
   std::vector<VkDescriptorSetLayout> descriptorSetLayoutHandleList = {
       descriptorSetLayoutHandle, materialDescriptorSetLayoutHandle};
 
@@ -757,6 +817,9 @@ int main() {
     throwExceptionVulkanAPI(result, "vkAllocateDescriptorSets");
   }
 
+  // =========================================================================
+  // Pipeline Layout 
+
   VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
       .pNext = NULL,
@@ -773,6 +836,9 @@ int main() {
   if (result != VK_SUCCESS) {
     throwExceptionVulkanAPI(result, "vkCreatePipelineLayout");
   }
+
+  // =========================================================================
+  // Vertex Shader Module
 
   std::ifstream vertexFile("shaders/basic.vert.spv",
                            std::ios::binary | std::ios::ate);
@@ -797,6 +863,9 @@ int main() {
     throwExceptionVulkanAPI(result, "vkCreateShaderModule");
   }
 
+  // =========================================================================
+  // Fragment Shader Module
+
   std::ifstream fragmentFile("shaders/basic.frag.spv",
                              std::ios::binary | std::ios::ate);
   std::streamsize fragmentFileSize = fragmentFile.tellg();
@@ -820,6 +889,9 @@ int main() {
   if (result != VK_SUCCESS) {
     throwExceptionVulkanAPI(result, "vkCreateShaderModule");
   }
+
+  // =========================================================================
+  // Graphics Pipeline
 
   std::vector<VkPipelineShaderStageCreateInfo>
       pipelineShaderStageCreateInfoList = {
@@ -976,6 +1048,9 @@ int main() {
     throwExceptionVulkanAPI(result, "vkCreateGraphicsPipelines");
   }
 
+  // =========================================================================
+  // OBJ Model
+
   tinyobj::ObjReaderConfig reader_config;
   tinyobj::ObjReader reader;
 
@@ -1004,6 +1079,9 @@ int main() {
       indexList.push_back(index.vertex_index);
     }
   }
+
+  // =========================================================================
+  // Vertex Buffer
 
   VkBufferCreateInfo vertexBufferCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -1085,6 +1163,9 @@ int main() {
   VkDeviceAddress vertexBufferDeviceAddress = pvkGetBufferDeviceAddressKHR(
       deviceHandle, &vertexBufferDeviceAddressInfo);
 
+  // =========================================================================
+  // Index Buffer
+
   VkBufferCreateInfo indexBufferCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
       .pNext = NULL,
@@ -1164,6 +1245,9 @@ int main() {
 
   VkDeviceAddress indexBufferDeviceAddress =
       pvkGetBufferDeviceAddressKHR(deviceHandle, &indexBufferDeviceAddressInfo);
+
+  // =========================================================================
+  // Bottom Level Acceleration Structure
 
   VkAccelerationStructureGeometryDataKHR
       bottomLevelAccelerationStructureGeometryData = {
@@ -1305,6 +1389,9 @@ int main() {
   if (result != VK_SUCCESS) {
     throwExceptionVulkanAPI(result, "vkCreateAccelerationStructureKHR");
   }
+
+  // =========================================================================
+  // Build Bottom Level Acceleration Structure
 
   VkAccelerationStructureDeviceAddressInfoKHR
       bottomLevelAccelerationStructureDeviceAddressInfo = {
@@ -1474,6 +1561,9 @@ int main() {
   if (result != VK_SUCCESS && result != VK_TIMEOUT) {
     throwExceptionVulkanAPI(result, "vkWaitForFences");
   }
+
+  // =========================================================================
+  // Top Level Acceleration Structure
 
   VkAccelerationStructureInstanceKHR bottomLevelAccelerationStructureInstance =
       {.transform = {.matrix = {{1.0, 0.0, 0.0, 0.0},
@@ -1711,6 +1801,9 @@ int main() {
     throwExceptionVulkanAPI(result, "vkCreateAccelerationStructureKHR");
   }
 
+  // =========================================================================
+  // Build Top Level Acceleration Structure
+
   VkAccelerationStructureDeviceAddressInfoKHR
       topLevelAccelerationStructureDeviceAddressInfo = {
           .sType =
@@ -1874,6 +1967,9 @@ int main() {
     throwExceptionVulkanAPI(result, "vkWaitForFences");
   }
 
+  // =========================================================================
+  // Uniform Buffer
+
   struct UniformStructure {
     float cameraPosition[4] = {0, 0, 0, 1};
     float cameraRight[4] = {1, 0, 0, 1};
@@ -1948,6 +2044,9 @@ int main() {
   }
 
   vkUnmapMemory(deviceHandle, uniformDeviceMemoryHandle);
+
+  // =========================================================================
+  // Ray Trace Image
 
   VkImageCreateInfo rayTraceImageCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -2037,6 +2136,10 @@ int main() {
     throwExceptionVulkanAPI(result, "vkCreateImageView");
   }
 
+  // =========================================================================
+  // Ray Trace Image Barrier
+  // (VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_GENERAL)
+
   VkCommandBufferBeginInfo rayTraceImageBarrierCommandBufferBeginInfo = {
       .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
       .pNext = NULL,
@@ -2118,6 +2221,9 @@ int main() {
     throwExceptionVulkanAPI(result, "vkWaitForFences");
   }
 
+  // =========================================================================
+  // Update Descriptor Set
+
   VkWriteDescriptorSetAccelerationStructureKHR
       accelerationStructureDescriptorInfo = {
           .sType =
@@ -2195,6 +2301,9 @@ int main() {
   vkUpdateDescriptorSets(deviceHandle, writeDescriptorSetList.size(),
                          writeDescriptorSetList.data(), 0, NULL);
 
+  // =========================================================================
+  // Material Index Buffer
+
   std::vector<uint32_t> materialIndexList;
   for (tinyobj::shape_t shape : shapes) {
     for (int index : shape.mesh.material_ids) {
@@ -2269,6 +2378,9 @@ int main() {
   }
 
   vkUnmapMemory(deviceHandle, materialIndexDeviceMemoryHandle);
+
+  // =========================================================================
+  // Material Buffer
 
   struct Material {
     float ambient[4] = {0, 0, 0, 0};
@@ -2353,6 +2465,9 @@ int main() {
 
   vkUnmapMemory(deviceHandle, materialDeviceMemoryHandle);
 
+  // =========================================================================
+  // Update Material Descriptor Set
+
   VkDescriptorBufferInfo materialIndexDescriptorInfo = {
       .buffer = materialIndexBufferHandle, .offset = 0, .range = VK_WHOLE_SIZE};
 
@@ -2383,6 +2498,9 @@ int main() {
 
   vkUpdateDescriptorSets(deviceHandle, materialWriteDescriptorSetList.size(),
                          materialWriteDescriptorSetList.data(), 0, NULL);
+
+  // =========================================================================
+  // Record Render Pass Command Buffers
 
   for (uint32_t x = 0; x < swapchainImageCount; x++) {
     VkCommandBufferBeginInfo renderCommandBufferBeginInfo = {
@@ -2542,6 +2660,9 @@ int main() {
     }
   }
 
+  // =========================================================================
+  // Fences, Semaphores 
+
   std::vector<VkFence> imageAvailableFenceHandleList(swapchainImageCount,
                                                      VK_NULL_HANDLE);
 
@@ -2589,6 +2710,9 @@ int main() {
     }
   }
 
+  // =========================================================================
+  // Main Loop
+
   uint32_t currentFrame = 0;
   uint32_t currentImageIndex = 0;
 
@@ -2598,31 +2722,31 @@ int main() {
     bool isCameraMoved = false;
 
     if (keyDownIndex[GLFW_KEY_W]) {
-      cameraPosition[0] += cos(-cameraYaw - (M_PI / 2)) * 0.1f;
-      cameraPosition[2] += sin(-cameraYaw - (M_PI / 2)) * 0.1f;
+      cameraPosition[0] += cos(-cameraYaw - (M_PI / 2)) * 0.01f;
+      cameraPosition[2] += sin(-cameraYaw - (M_PI / 2)) * 0.01f;
       isCameraMoved = true;
     }
     if (keyDownIndex[GLFW_KEY_S]) {
-      cameraPosition[0] -= cos(-cameraYaw - (M_PI / 2)) * 0.1f;
-      cameraPosition[2] -= sin(-cameraYaw - (M_PI / 2)) * 0.1f;
+      cameraPosition[0] -= cos(-cameraYaw - (M_PI / 2)) * 0.01f;
+      cameraPosition[2] -= sin(-cameraYaw - (M_PI / 2)) * 0.01f;
       isCameraMoved = true;
     }
     if (keyDownIndex[GLFW_KEY_A]) {
-      cameraPosition[0] -= cos(-cameraYaw) * 0.1f;
-      cameraPosition[2] -= sin(-cameraYaw) * 0.1f;
+      cameraPosition[0] -= cos(-cameraYaw) * 0.01f;
+      cameraPosition[2] -= sin(-cameraYaw) * 0.01f;
       isCameraMoved = true;
     }
     if (keyDownIndex[GLFW_KEY_D]) {
-      cameraPosition[0] += cos(-cameraYaw) * 0.1f;
-      cameraPosition[2] += sin(-cameraYaw) * 0.1f;
+      cameraPosition[0] += cos(-cameraYaw) * 0.01f;
+      cameraPosition[2] += sin(-cameraYaw) * 0.01f;
       isCameraMoved = true;
     }
     if (keyDownIndex[GLFW_KEY_SPACE]) {
-      cameraPosition[1] += 0.1f;
+      cameraPosition[1] += 0.01f;
       isCameraMoved = true;
     }
     if (keyDownIndex[GLFW_KEY_LEFT_CONTROL]) {
-      cameraPosition[1] -= 0.1f;
+      cameraPosition[1] -= 0.01f;
       isCameraMoved = true;
     }
 
