@@ -126,7 +126,7 @@ int main() {
   VkApplicationInfo applicationInfo = {
       .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
       .pNext = NULL,
-      .pApplicationName = "Ray Query Example",
+      .pApplicationName = "Ray Tracing Pipeline Example",
       .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
       .pEngineName = "",
       .engineVersion = VK_MAKE_VERSION(1, 0, 0),
@@ -199,6 +199,20 @@ int main() {
   vkGetPhysicalDeviceProperties(activePhysicalDeviceHandle,
                                 &physicalDeviceProperties);
 
+  VkPhysicalDeviceRayTracingPipelinePropertiesKHR
+      physicalDeviceRayTracingPipelineProperties = {
+          .sType =
+              VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR,
+          .pNext = NULL};
+
+  VkPhysicalDeviceProperties2 physicalDeviceProperties2 = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+      .pNext = &physicalDeviceRayTracingPipelineProperties,
+      .properties = physicalDeviceProperties};
+
+  vkGetPhysicalDeviceProperties2(activePhysicalDeviceHandle,
+                                 &physicalDeviceProperties2);
+
   VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties;
   vkGetPhysicalDeviceMemoryProperties(activePhysicalDeviceHandle,
                                       &physicalDeviceMemoryProperties);
@@ -228,11 +242,16 @@ int main() {
           .accelerationStructureHostCommands = VK_FALSE,
           .descriptorBindingAccelerationStructureUpdateAfterBind = VK_FALSE};
 
-  VkPhysicalDeviceRayQueryFeaturesKHR physicalDeviceRayQueryFeatures = {
-      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
-      .pNext = &physicalDeviceAccelerationStructureFeatures,
-      .rayQuery = VK_TRUE};
-
+  VkPhysicalDeviceRayTracingPipelineFeaturesKHR
+      physicalDeviceRayTracingPipelineFeatures = {
+          .sType =
+              VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
+          .pNext = &physicalDeviceAccelerationStructureFeatures,
+          .rayTracingPipeline = VK_TRUE,
+          .rayTracingPipelineShaderGroupHandleCaptureReplay = VK_FALSE,
+          .rayTracingPipelineShaderGroupHandleCaptureReplayMixed = VK_FALSE,
+          .rayTracingPipelineTraceRaysIndirect = VK_FALSE,
+          .rayTraversalPrimitiveCulling = VK_FALSE};
   VkPhysicalDeviceFeatures deviceFeatures = {.geometryShader = VK_TRUE};
 
   // =========================================================================
@@ -281,9 +300,7 @@ int main() {
   // Logical Device
 
   std::vector<const char *> deviceExtensionList = {
-      "VK_KHR_ray_query",
-      "VK_KHR_spirv_1_4",
-      "VK_KHR_shader_float_controls",
+      "VK_KHR_ray_tracing_pipeline",
       "VK_KHR_acceleration_structure",
       "VK_EXT_descriptor_indexing",
       "VK_KHR_maintenance3",
@@ -293,7 +310,7 @@ int main() {
 
   VkDeviceCreateInfo deviceCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-      .pNext = &physicalDeviceRayQueryFeatures,
+      .pNext = &physicalDeviceRayTracingPipelineFeatures,
       .flags = 0,
       .queueCreateInfoCount = 1,
       .pQueueCreateInfos = &deviceQueueCreateInfo,
@@ -324,6 +341,10 @@ int main() {
       (PFN_vkGetBufferDeviceAddressKHR)vkGetDeviceProcAddr(
           deviceHandle, "vkGetBufferDeviceAddressKHR");
 
+  PFN_vkCreateRayTracingPipelinesKHR pvkCreateRayTracingPipelinesKHR =
+      (PFN_vkCreateRayTracingPipelinesKHR)vkGetDeviceProcAddr(
+          deviceHandle, "vkCreateRayTracingPipelinesKHR");
+
   PFN_vkGetAccelerationStructureBuildSizesKHR
       pvkGetAccelerationStructureBuildSizesKHR =
           (PFN_vkGetAccelerationStructureBuildSizesKHR)vkGetDeviceProcAddr(
@@ -345,6 +366,15 @@ int main() {
   PFN_vkCmdBuildAccelerationStructuresKHR pvkCmdBuildAccelerationStructuresKHR =
       (PFN_vkCmdBuildAccelerationStructuresKHR)vkGetDeviceProcAddr(
           deviceHandle, "vkCmdBuildAccelerationStructuresKHR");
+
+  PFN_vkGetRayTracingShaderGroupHandlesKHR
+      pvkGetRayTracingShaderGroupHandlesKHR =
+          (PFN_vkGetRayTracingShaderGroupHandlesKHR)vkGetDeviceProcAddr(
+              deviceHandle, "vkGetRayTracingShaderGroupHandlesKHR");
+
+  PFN_vkCmdTraceRaysKHR pvkCmdTraceRaysKHR =
+      (PFN_vkCmdTraceRaysKHR)vkGetDeviceProcAddr(deviceHandle,
+                                                 "vkCmdTraceRaysKHR");
 
   VkMemoryAllocateFlagsInfo memoryAllocateFlagsInfo = {
       .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
@@ -450,8 +480,7 @@ int main() {
       .imageColorSpace = surfaceFormatList[0].colorSpace,
       .imageExtent = surfaceCapabilities.currentExtent,
       .imageArrayLayers = 1,
-      .imageUsage =
-          VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+      .imageUsage = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
       .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
       .queueFamilyIndexCount = 1,
       .pQueueFamilyIndices = &queueFamilyIndex,
@@ -467,65 +496,6 @@ int main() {
 
   if (result != VK_SUCCESS) {
     throwExceptionVulkanAPI(result, "vkCreateSwapchainKHR");
-  }
-
-  // =========================================================================
-  // Render Pass
-
-  std::vector<VkAttachmentDescription> attachmentDescriptionList = {
-      {.flags = 0,
-       .format = surfaceFormatList[0].format,
-       .samples = VK_SAMPLE_COUNT_1_BIT,
-       .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-       .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-       .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-       .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-       .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-       .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR},
-      {.flags = 0,
-       .format = VK_FORMAT_D32_SFLOAT,
-       .samples = VK_SAMPLE_COUNT_1_BIT,
-       .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-       .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-       .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-       .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-       .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-       .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}};
-
-  std::vector<VkAttachmentReference> attachmentReferenceList = {
-      {.attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
-      {.attachment = 1,
-       .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}};
-
-  VkSubpassDescription subpassDescription = {
-      .flags = 0,
-      .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-      .inputAttachmentCount = 0,
-      .pInputAttachments = NULL,
-      .colorAttachmentCount = 1,
-      .pColorAttachments = &attachmentReferenceList[0],
-      .pResolveAttachments = NULL,
-      .pDepthStencilAttachment = &attachmentReferenceList[1],
-      .preserveAttachmentCount = 0,
-      .pPreserveAttachments = NULL};
-
-  VkRenderPassCreateInfo renderPassCreateInfo = {
-      .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-      .pNext = NULL,
-      .flags = 0,
-      .attachmentCount = (uint32_t)attachmentDescriptionList.size(),
-      .pAttachments = attachmentDescriptionList.data(),
-      .subpassCount = 1,
-      .pSubpasses = &subpassDescription,
-      .dependencyCount = 0,
-      .pDependencies = NULL};
-
-  VkRenderPass renderPassHandle = VK_NULL_HANDLE;
-  result = vkCreateRenderPass(deviceHandle, &renderPassCreateInfo, NULL,
-                              &renderPassHandle);
-
-  if (result != VK_SUCCESS) {
-    throwExceptionVulkanAPI(result, "vkCreateRenderPass");
   }
 
   // =========================================================================
@@ -548,23 +518,8 @@ int main() {
     throwExceptionVulkanAPI(result, "vkGetSwapchainImagesKHR");
   }
 
-  // =========================================================================
-  // Swapchain Image Views, Depth Images, Framebuffers
-
   std::vector<VkImageView> swapchainImageViewHandleList(swapchainImageCount,
                                                         VK_NULL_HANDLE);
-
-  std::vector<VkImage> depthImageHandleList(swapchainImageCount,
-                                            VK_NULL_HANDLE);
-
-  std::vector<VkDeviceMemory> depthImageDeviceMemoryHandleList(
-      swapchainImageCount, VK_NULL_HANDLE);
-
-  std::vector<VkImageView> depthImageViewHandleList(swapchainImageCount,
-                                                    VK_NULL_HANDLE);
-
-  std::vector<VkFramebuffer> framebufferHandleList(swapchainImageCount,
-                                                   VK_NULL_HANDLE);
 
   for (uint32_t x = 0; x < swapchainImageCount; x++) {
     VkImageViewCreateInfo imageViewCreateInfo = {
@@ -585,112 +540,6 @@ int main() {
 
     if (result != VK_SUCCESS) {
       throwExceptionVulkanAPI(result, "vkCreateImageView");
-    }
-
-    VkImageCreateInfo depthImageCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .pNext = NULL,
-        .flags = 0,
-        .imageType = VK_IMAGE_TYPE_2D,
-        .format = VK_FORMAT_D32_SFLOAT,
-        .extent = {.width = surfaceCapabilities.currentExtent.width,
-                   .height = surfaceCapabilities.currentExtent.height,
-                   .depth = 1},
-        .mipLevels = 1,
-        .arrayLayers = 1,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .queueFamilyIndexCount = 1,
-        .pQueueFamilyIndices = &queueFamilyIndex,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
-
-    result = vkCreateImage(deviceHandle, &depthImageCreateInfo, NULL,
-                           &depthImageHandleList[x]);
-
-    if (result != VK_SUCCESS) {
-      throwExceptionVulkanAPI(result, "vkCreateImage");
-    }
-
-    VkMemoryRequirements depthImageMemoryRequirements;
-    vkGetImageMemoryRequirements(deviceHandle, depthImageHandleList[x],
-                                 &depthImageMemoryRequirements);
-
-    uint32_t depthImageMemoryTypeIndex = -1;
-    for (uint32_t x = 0; x < physicalDeviceMemoryProperties.memoryTypeCount;
-         x++) {
-      if ((depthImageMemoryRequirements.memoryTypeBits & (1 << x)) &&
-          (physicalDeviceMemoryProperties.memoryTypes[x].propertyFlags &
-           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) ==
-              VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
-
-        depthImageMemoryTypeIndex = x;
-        break;
-      }
-    }
-
-    VkMemoryAllocateInfo depthImageMemoryAllocateInfo = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .pNext = NULL,
-        .allocationSize = depthImageMemoryRequirements.size,
-        .memoryTypeIndex = depthImageMemoryTypeIndex};
-
-    result = vkAllocateMemory(deviceHandle, &depthImageMemoryAllocateInfo, NULL,
-                              &depthImageDeviceMemoryHandleList[x]);
-    if (result != VK_SUCCESS) {
-      throwExceptionVulkanAPI(result, "vkAllocateMemory");
-    }
-
-    result = vkBindImageMemory(deviceHandle, depthImageHandleList[x],
-                               depthImageDeviceMemoryHandleList[x], 0);
-    if (result != VK_SUCCESS) {
-      throwExceptionVulkanAPI(result, "vkBindImageMemory");
-    }
-
-    VkImageViewCreateInfo depthImageViewCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .pNext = NULL,
-        .flags = 0,
-        .image = depthImageHandleList[x],
-        .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = VK_FORMAT_D32_SFLOAT,
-        .components = {.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                       .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                       .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                       .a = VK_COMPONENT_SWIZZLE_IDENTITY},
-        .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
-                             .baseMipLevel = 0,
-                             .levelCount = 1,
-                             .baseArrayLayer = 0,
-                             .layerCount = 1}};
-
-    result = vkCreateImageView(deviceHandle, &depthImageViewCreateInfo, NULL,
-                               &depthImageViewHandleList[x]);
-
-    if (result != VK_SUCCESS) {
-      throwExceptionVulkanAPI(result, "vkCreateImageView");
-    }
-
-    std::vector<VkImageView> imageViewHandleList = {
-        swapchainImageViewHandleList[x], depthImageViewHandleList[x]};
-
-    VkFramebufferCreateInfo framebufferCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-        .pNext = NULL,
-        .flags = 0,
-        .renderPass = renderPassHandle,
-        .attachmentCount = 2,
-        .pAttachments = imageViewHandleList.data(),
-        .width = surfaceCapabilities.currentExtent.width,
-        .height = surfaceCapabilities.currentExtent.height,
-        .layers = 1};
-
-    result = vkCreateFramebuffer(deviceHandle, &framebufferCreateInfo, NULL,
-                                 &framebufferHandleList[x]);
-
-    if (result != VK_SUCCESS) {
-      throwExceptionVulkanAPI(result, "vkCreateFramebuffer");
     }
   }
 
@@ -727,27 +576,29 @@ int main() {
       {.binding = 0,
        .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
        .descriptorCount = 1,
-       .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+       .stageFlags =
+           VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
        .pImmutableSamplers = NULL},
       {.binding = 1,
        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
        .descriptorCount = 1,
-       .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+       .stageFlags =
+           VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
        .pImmutableSamplers = NULL},
       {.binding = 2,
        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
        .descriptorCount = 1,
-       .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+       .stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
        .pImmutableSamplers = NULL},
       {.binding = 3,
        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
        .descriptorCount = 1,
-       .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+       .stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
        .pImmutableSamplers = NULL},
       {.binding = 4,
        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
        .descriptorCount = 1,
-       .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+       .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
        .pImmutableSamplers = NULL}};
 
   VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
@@ -774,14 +625,12 @@ int main() {
           {.binding = 0,
            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
            .descriptorCount = 1,
-           .stageFlags =
-               VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+           .stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
            .pImmutableSamplers = NULL},
           {.binding = 1,
            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
            .descriptorCount = 1,
-           .stageFlags =
-               VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+           .stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
            .pImmutableSamplers = NULL}};
 
   VkDescriptorSetLayoutCreateInfo materialDescriptorSetLayoutCreateInfo = {
@@ -844,214 +693,210 @@ int main() {
   }
 
   // =========================================================================
-  // Vertex Shader Module
+  // Ray Closest Hit Shader Module
 
-  std::ifstream vertexFile("shaders/shader.vert.spv",
-                           std::ios::binary | std::ios::ate);
-  std::streamsize vertexFileSize = vertexFile.tellg();
-  vertexFile.seekg(0, std::ios::beg);
-  std::vector<uint32_t> vertexShaderSource(vertexFileSize / sizeof(uint32_t));
-  vertexFile.read((char *)vertexShaderSource.data(), vertexFileSize);
-  vertexFile.close();
+  std::ifstream rayClosestHitFile("shaders/shader.rchit.spv",
+                                  std::ios::binary | std::ios::ate);
+  std::streamsize rayClosestHitFileSize = rayClosestHitFile.tellg();
+  rayClosestHitFile.seekg(0, std::ios::beg);
+  std::vector<uint32_t> rayClosestHitShaderSource(rayClosestHitFileSize /
+                                                  sizeof(uint32_t));
+  rayClosestHitFile.read((char *)rayClosestHitShaderSource.data(),
+                         rayClosestHitFileSize);
+  rayClosestHitFile.close();
 
-  VkShaderModuleCreateInfo vertexShaderModuleCreateInfo = {
+  VkShaderModuleCreateInfo rayClosestHitShaderModuleCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
       .pNext = NULL,
       .flags = 0,
-      .codeSize = (uint32_t)vertexShaderSource.size() * sizeof(uint32_t),
-      .pCode = vertexShaderSource.data()};
+      .codeSize = (uint32_t)rayClosestHitShaderSource.size() * sizeof(uint32_t),
+      .pCode = rayClosestHitShaderSource.data()};
 
-  VkShaderModule vertexShaderModuleHandle = VK_NULL_HANDLE;
-  result = vkCreateShaderModule(deviceHandle, &vertexShaderModuleCreateInfo,
-                                NULL, &vertexShaderModuleHandle);
+  VkShaderModule rayClosestHitShaderModuleHandle = VK_NULL_HANDLE;
+  result =
+      vkCreateShaderModule(deviceHandle, &rayClosestHitShaderModuleCreateInfo,
+                           NULL, &rayClosestHitShaderModuleHandle);
 
   if (result != VK_SUCCESS) {
     throwExceptionVulkanAPI(result, "vkCreateShaderModule");
   }
 
   // =========================================================================
-  // Fragment Shader Module
+  // Ray Generate Shader Module
 
-  std::ifstream fragmentFile("shaders/shader.frag.spv",
-                             std::ios::binary | std::ios::ate);
-  std::streamsize fragmentFileSize = fragmentFile.tellg();
-  fragmentFile.seekg(0, std::ios::beg);
-  std::vector<uint32_t> fragmentShaderSource(fragmentFileSize /
-                                             sizeof(uint32_t));
-  fragmentFile.read((char *)fragmentShaderSource.data(), fragmentFileSize);
-  fragmentFile.close();
+  std::ifstream rayGenerateFile("shaders/shader.rgen.spv",
+                                std::ios::binary | std::ios::ate);
+  std::streamsize rayGenerateFileSize = rayGenerateFile.tellg();
+  rayGenerateFile.seekg(0, std::ios::beg);
+  std::vector<uint32_t> rayGenerateShaderSource(rayGenerateFileSize /
+                                                sizeof(uint32_t));
+  rayGenerateFile.read((char *)rayGenerateShaderSource.data(),
+                       rayGenerateFileSize);
+  rayGenerateFile.close();
 
-  VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo = {
+  VkShaderModuleCreateInfo rayGenerateShaderModuleCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
       .pNext = NULL,
       .flags = 0,
-      .codeSize = (uint32_t)fragmentShaderSource.size() * sizeof(uint32_t),
-      .pCode = fragmentShaderSource.data()};
+      .codeSize = (uint32_t)rayGenerateShaderSource.size() * sizeof(uint32_t),
+      .pCode = rayGenerateShaderSource.data()};
 
-  VkShaderModule fragmentShaderModuleHandle = VK_NULL_HANDLE;
-  result = vkCreateShaderModule(deviceHandle, &fragmentShaderModuleCreateInfo,
-                                NULL, &fragmentShaderModuleHandle);
+  VkShaderModule rayGenerateShaderModuleHandle = VK_NULL_HANDLE;
+  result =
+      vkCreateShaderModule(deviceHandle, &rayGenerateShaderModuleCreateInfo,
+                           NULL, &rayGenerateShaderModuleHandle);
 
   if (result != VK_SUCCESS) {
     throwExceptionVulkanAPI(result, "vkCreateShaderModule");
   }
 
   // =========================================================================
-  // Graphics Pipeline
+  // Ray Miss Shader Module
+
+  std::ifstream rayMissFile("shaders/shader.rmiss.spv",
+                            std::ios::binary | std::ios::ate);
+  std::streamsize rayMissFileSize = rayMissFile.tellg();
+  rayMissFile.seekg(0, std::ios::beg);
+  std::vector<uint32_t> rayMissShaderSource(rayMissFileSize / sizeof(uint32_t));
+  rayMissFile.read((char *)rayMissShaderSource.data(), rayMissFileSize);
+  rayMissFile.close();
+
+  VkShaderModuleCreateInfo rayMissShaderModuleCreateInfo = {
+      .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+      .pNext = NULL,
+      .flags = 0,
+      .codeSize = (uint32_t)rayMissShaderSource.size() * sizeof(uint32_t),
+      .pCode = rayMissShaderSource.data()};
+
+  VkShaderModule rayMissShaderModuleHandle = VK_NULL_HANDLE;
+  result = vkCreateShaderModule(deviceHandle, &rayMissShaderModuleCreateInfo,
+                                NULL, &rayMissShaderModuleHandle);
+
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkCreateShaderModule");
+  }
+
+  // =========================================================================
+  // Ray Miss Shader Module (Shadow)
+
+  std::ifstream rayMissShadowFile("shaders/shader_shadow.rmiss.spv",
+                                  std::ios::binary | std::ios::ate);
+  std::streamsize rayMissShadowFileSize = rayMissShadowFile.tellg();
+  rayMissShadowFile.seekg(0, std::ios::beg);
+  std::vector<uint32_t> rayMissShadowShaderSource(rayMissShadowFileSize /
+                                                  sizeof(uint32_t));
+  rayMissShadowFile.read((char *)rayMissShadowShaderSource.data(),
+                         rayMissShadowFileSize);
+  rayMissShadowFile.close();
+
+  VkShaderModuleCreateInfo rayMissShadowShaderModuleCreateInfo = {
+      .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+      .pNext = NULL,
+      .flags = 0,
+      .codeSize = (uint32_t)rayMissShadowShaderSource.size() * sizeof(uint32_t),
+      .pCode = rayMissShadowShaderSource.data()};
+
+  VkShaderModule rayMissShadowShaderModuleHandle = VK_NULL_HANDLE;
+  result =
+      vkCreateShaderModule(deviceHandle, &rayMissShadowShaderModuleCreateInfo,
+                           NULL, &rayMissShadowShaderModuleHandle);
+
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkCreateShaderModule");
+  }
+
+  // =========================================================================
+  // Ray Tracing Pipeline
 
   std::vector<VkPipelineShaderStageCreateInfo>
       pipelineShaderStageCreateInfoList = {
           {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
            .pNext = NULL,
            .flags = 0,
-           .stage = VK_SHADER_STAGE_VERTEX_BIT,
-           .module = vertexShaderModuleHandle,
+           .stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+           .module = rayClosestHitShaderModuleHandle,
            .pName = "main",
            .pSpecializationInfo = NULL},
           {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
            .pNext = NULL,
            .flags = 0,
-           .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-           .module = fragmentShaderModuleHandle,
+           .stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+           .module = rayGenerateShaderModuleHandle,
+           .pName = "main",
+           .pSpecializationInfo = NULL},
+          {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+           .pNext = NULL,
+           .flags = 0,
+           .stage = VK_SHADER_STAGE_MISS_BIT_KHR,
+           .module = rayMissShaderModuleHandle,
+           .pName = "main",
+           .pSpecializationInfo = NULL},
+          {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+           .pNext = NULL,
+           .flags = 0,
+           .stage = VK_SHADER_STAGE_MISS_BIT_KHR,
+           .module = rayMissShadowShaderModuleHandle,
            .pName = "main",
            .pSpecializationInfo = NULL}};
 
-  VkVertexInputBindingDescription vertexInputBindingDescription = {
-      .binding = 0,
-      .stride = sizeof(float) * 3,
-      .inputRate = VK_VERTEX_INPUT_RATE_VERTEX};
+  std::vector<VkRayTracingShaderGroupCreateInfoKHR>
+      rayTracingShaderGroupCreateInfoList = {
+          {.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+           .pNext = NULL,
+           .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR,
+           .generalShader = VK_SHADER_UNUSED_KHR,
+           .closestHitShader = 0,
+           .anyHitShader = VK_SHADER_UNUSED_KHR,
+           .intersectionShader = VK_SHADER_UNUSED_KHR,
+           .pShaderGroupCaptureReplayHandle = NULL},
+          {.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+           .pNext = NULL,
+           .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+           .generalShader = 1,
+           .closestHitShader = VK_SHADER_UNUSED_KHR,
+           .anyHitShader = VK_SHADER_UNUSED_KHR,
+           .intersectionShader = VK_SHADER_UNUSED_KHR,
+           .pShaderGroupCaptureReplayHandle = NULL},
+          {.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+           .pNext = NULL,
+           .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+           .generalShader = 2,
+           .closestHitShader = VK_SHADER_UNUSED_KHR,
+           .anyHitShader = VK_SHADER_UNUSED_KHR,
+           .intersectionShader = VK_SHADER_UNUSED_KHR,
+           .pShaderGroupCaptureReplayHandle = NULL},
+          {.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+           .pNext = NULL,
+           .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+           .generalShader = 3,
+           .closestHitShader = VK_SHADER_UNUSED_KHR,
+           .anyHitShader = VK_SHADER_UNUSED_KHR,
+           .intersectionShader = VK_SHADER_UNUSED_KHR,
+           .pShaderGroupCaptureReplayHandle = NULL}};
 
-  VkVertexInputAttributeDescription vertexInputAttributeDescription = {
-      .location = 0,
-      .binding = 0,
-      .format = VK_FORMAT_R32G32B32_SFLOAT,
-      .offset = 0};
-
-  VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo = {
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+  VkRayTracingPipelineCreateInfoKHR rayTracingPipelineCreateInfo = {
+      .sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR,
       .pNext = NULL,
       .flags = 0,
-      .vertexBindingDescriptionCount = 1,
-      .pVertexBindingDescriptions = &vertexInputBindingDescription,
-      .vertexAttributeDescriptionCount = 1,
-      .pVertexAttributeDescriptions = &vertexInputAttributeDescription};
-
-  VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo =
-      {.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-       .pNext = NULL,
-       .flags = 0,
-       .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-       .primitiveRestartEnable = VK_FALSE};
-
-  VkViewport viewport = {
-      .x = 0,
-      .y = (float)surfaceCapabilities.currentExtent.height,
-      .width = (float)surfaceCapabilities.currentExtent.width,
-      .height = -(float)surfaceCapabilities.currentExtent.height,
-      .minDepth = 0,
-      .maxDepth = 1};
-
-  VkRect2D screenRect2D = {.offset = {.x = 0, .y = 0},
-                           .extent = surfaceCapabilities.currentExtent};
-
-  VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo = {
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-      .pNext = NULL,
-      .flags = 0,
-      .viewportCount = 1,
-      .pViewports = &viewport,
-      .scissorCount = 1,
-      .pScissors = &screenRect2D};
-
-  VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo =
-      {.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-       .pNext = NULL,
-       .flags = 0,
-       .depthClampEnable = VK_FALSE,
-       .rasterizerDiscardEnable = VK_FALSE,
-       .polygonMode = VK_POLYGON_MODE_FILL,
-       .cullMode = VK_CULL_MODE_NONE,
-       .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-       .depthBiasEnable = VK_FALSE,
-       .depthBiasConstantFactor = 0.0,
-       .depthBiasClamp = 0.0,
-       .depthBiasSlopeFactor = 0.0,
-       .lineWidth = 1.0};
-
-  VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo = {
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-      .pNext = NULL,
-      .flags = 0,
-      .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-      .sampleShadingEnable = VK_FALSE,
-      .minSampleShading = 0.0,
-      .pSampleMask = NULL,
-      .alphaToCoverageEnable = VK_FALSE,
-      .alphaToOneEnable = VK_FALSE};
-
-  VkPipelineColorBlendAttachmentState pipelineColorBlendAttachmentState = {
-      .blendEnable = VK_FALSE,
-      .srcColorBlendFactor = VK_BLEND_FACTOR_ZERO,
-      .dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
-      .colorBlendOp = VK_BLEND_OP_ADD,
-      .srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-      .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-      .alphaBlendOp = VK_BLEND_OP_ADD,
-      .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT};
-
-  VkPipelineDepthStencilStateCreateInfo pipelineDepthStencilStateCreateInfo = {
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-      .pNext = NULL,
-      .flags = 0,
-      .depthTestEnable = VK_TRUE,
-      .depthWriteEnable = VK_TRUE,
-      .depthCompareOp = VK_COMPARE_OP_LESS,
-      .depthBoundsTestEnable = VK_FALSE,
-      .stencilTestEnable = VK_FALSE,
-      .front = {},
-      .back = {},
-      .minDepthBounds = 0.0,
-      .maxDepthBounds = 1.0};
-
-  VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo = {
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-      .pNext = NULL,
-      .flags = 0,
-      .logicOpEnable = VK_FALSE,
-      .logicOp = VK_LOGIC_OP_COPY,
-      .attachmentCount = 1,
-      .pAttachments = &pipelineColorBlendAttachmentState,
-      .blendConstants = {0, 0, 0, 0}};
-
-  VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {
-      .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-      .pNext = NULL,
-      .flags = 0,
-      .stageCount = (uint32_t)pipelineShaderStageCreateInfoList.size(),
+      .stageCount = 4,
       .pStages = pipelineShaderStageCreateInfoList.data(),
-      .pVertexInputState = &pipelineVertexInputStateCreateInfo,
-      .pInputAssemblyState = &pipelineInputAssemblyStateCreateInfo,
-      .pTessellationState = NULL,
-      .pViewportState = &pipelineViewportStateCreateInfo,
-      .pRasterizationState = &pipelineRasterizationStateCreateInfo,
-      .pMultisampleState = &pipelineMultisampleStateCreateInfo,
-      .pDepthStencilState = &pipelineDepthStencilStateCreateInfo,
-      .pColorBlendState = &pipelineColorBlendStateCreateInfo,
+      .groupCount = 4,
+      .pGroups = rayTracingShaderGroupCreateInfoList.data(),
+      .maxPipelineRayRecursionDepth = 1,
+      .pLibraryInfo = NULL,
+      .pLibraryInterface = NULL,
       .pDynamicState = NULL,
       .layout = pipelineLayoutHandle,
-      .renderPass = renderPassHandle,
-      .subpass = 0,
       .basePipelineHandle = VK_NULL_HANDLE,
       .basePipelineIndex = 0};
 
-  VkPipeline graphicsPipelineHandle = VK_NULL_HANDLE;
-  result = vkCreateGraphicsPipelines(deviceHandle, VK_NULL_HANDLE, 1,
-                                     &graphicsPipelineCreateInfo, NULL,
-                                     &graphicsPipelineHandle);
+  VkPipeline rayTracingPipelineHandle = VK_NULL_HANDLE;
+  result = pvkCreateRayTracingPipelinesKHR(
+      deviceHandle, VK_NULL_HANDLE, VK_NULL_HANDLE, 1,
+      &rayTracingPipelineCreateInfo, NULL, &rayTracingPipelineHandle);
 
   if (result != VK_SUCCESS) {
-    throwExceptionVulkanAPI(result, "vkCreateGraphicsPipelines");
+    throwExceptionVulkanAPI(result, "vkCreateRayTracingPipelinesKHR");
   }
 
   // =========================================================================
@@ -1095,7 +940,6 @@ int main() {
       .flags = 0,
       .size = sizeof(float) * attrib.vertices.size() * 3,
       .usage =
-          VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
           VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
           VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
@@ -1178,7 +1022,6 @@ int main() {
       .flags = 0,
       .size = sizeof(uint32_t) * indexList.size(),
       .usage =
-          VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
           VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
           VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
@@ -2075,7 +1918,7 @@ int main() {
       .arrayLayers = 1,
       .samples = VK_SAMPLE_COUNT_1_BIT,
       .tiling = VK_IMAGE_TILING_OPTIMAL,
-      .usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+      .usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
       .queueFamilyIndexCount = 1,
       .pQueueFamilyIndices = &queueFamilyIndex,
@@ -2518,6 +2361,131 @@ int main() {
                          materialWriteDescriptorSetList.data(), 0, NULL);
 
   // =========================================================================
+  // Shader Binding Table
+
+  VkDeviceSize shaderBindingTableSize =
+      physicalDeviceRayTracingPipelineProperties.shaderGroupHandleSize * 4;
+
+  VkBufferCreateInfo shaderBindingTableBufferCreateInfo = {
+      .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+      .pNext = NULL,
+      .flags = 0,
+      .size = shaderBindingTableSize,
+      .usage = VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR |
+               VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .queueFamilyIndexCount = 1,
+      .pQueueFamilyIndices = &queueFamilyIndex};
+
+  VkBuffer shaderBindingTableBufferHandle = VK_NULL_HANDLE;
+  result = vkCreateBuffer(deviceHandle, &shaderBindingTableBufferCreateInfo,
+                          NULL, &shaderBindingTableBufferHandle);
+
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkCreateBuffer");
+  }
+
+  VkMemoryRequirements shaderBindingTableMemoryRequirements;
+  vkGetBufferMemoryRequirements(deviceHandle, shaderBindingTableBufferHandle,
+                                &shaderBindingTableMemoryRequirements);
+
+  uint32_t shaderBindingTableMemoryTypeIndex = -1;
+  for (uint32_t x = 0; x < physicalDeviceMemoryProperties.memoryTypeCount;
+       x++) {
+    if ((shaderBindingTableMemoryRequirements.memoryTypeBits & (1 << x)) &&
+        (physicalDeviceMemoryProperties.memoryTypes[x].propertyFlags &
+         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) ==
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+
+      shaderBindingTableMemoryTypeIndex = x;
+      break;
+    }
+  }
+
+  VkMemoryAllocateInfo shaderBindingTableMemoryAllocateInfo = {
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .pNext = &memoryAllocateFlagsInfo,
+      .allocationSize = shaderBindingTableMemoryRequirements.size,
+      .memoryTypeIndex = shaderBindingTableMemoryTypeIndex};
+
+  VkDeviceMemory shaderBindingTableDeviceMemoryHandle = VK_NULL_HANDLE;
+  result = vkAllocateMemory(deviceHandle, &shaderBindingTableMemoryAllocateInfo,
+                            NULL, &shaderBindingTableDeviceMemoryHandle);
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkAllocateMemory");
+  }
+
+  result = vkBindBufferMemory(deviceHandle, shaderBindingTableBufferHandle,
+                              shaderBindingTableDeviceMemoryHandle, 0);
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkBindBufferMemory");
+  }
+
+  char *shaderHandleBuffer = new char[shaderBindingTableSize];
+  result = pvkGetRayTracingShaderGroupHandlesKHR(
+      deviceHandle, rayTracingPipelineHandle, 0, 4, shaderBindingTableSize,
+      shaderHandleBuffer);
+
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkGetRayTracingShaderGroupHandlesKHR");
+  }
+
+  void *hostShaderBindingTableMemoryBuffer;
+  result = vkMapMemory(deviceHandle, shaderBindingTableDeviceMemoryHandle, 0,
+                       shaderBindingTableSize, 0,
+                       &hostShaderBindingTableMemoryBuffer);
+
+  for (uint32_t x = 0; x < 4; x++) {
+    memcpy(hostShaderBindingTableMemoryBuffer,
+           shaderHandleBuffer + x * physicalDeviceRayTracingPipelineProperties
+                                        .shaderGroupHandleSize,
+           physicalDeviceRayTracingPipelineProperties.shaderGroupHandleSize);
+    hostShaderBindingTableMemoryBuffer =
+        (char *)hostShaderBindingTableMemoryBuffer +
+        physicalDeviceRayTracingPipelineProperties.shaderGroupBaseAlignment;
+  }
+
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkMapMemory");
+  }
+
+  vkUnmapMemory(deviceHandle, shaderBindingTableDeviceMemoryHandle);
+
+  VkBufferDeviceAddressInfo shaderBindingTableBufferDeviceAddressInfo = {
+      .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+      .pNext = NULL,
+      .buffer = shaderBindingTableBufferHandle};
+
+  VkDeviceAddress shaderBindingTableBufferDeviceAddress =
+      pvkGetBufferDeviceAddressKHR(deviceHandle,
+                                   &shaderBindingTableBufferDeviceAddressInfo);
+
+  VkDeviceSize progSize =
+      physicalDeviceRayTracingPipelineProperties.shaderGroupBaseAlignment;
+
+  VkDeviceSize sbtSize = progSize * (VkDeviceSize)4;
+  VkDeviceSize hitGroupOffset = 0u * progSize;
+  VkDeviceSize rayGenOffset = 1u * progSize;
+  VkDeviceSize missOffset = 2u * progSize;
+
+  const VkStridedDeviceAddressRegionKHR rchitShaderBindingTable = {
+      .deviceAddress = shaderBindingTableBufferDeviceAddress + 0u * progSize,
+      .stride = progSize,
+      .size = sbtSize * 1};
+
+  const VkStridedDeviceAddressRegionKHR rgenShaderBindingTable = {
+      .deviceAddress = shaderBindingTableBufferDeviceAddress + 1u * progSize,
+      .stride = sbtSize,
+      .size = sbtSize * 1};
+
+  const VkStridedDeviceAddressRegionKHR rmissShaderBindingTable = {
+      .deviceAddress = shaderBindingTableBufferDeviceAddress + 2u * progSize,
+      .stride = progSize,
+      .size = sbtSize * 2};
+
+  const VkStridedDeviceAddressRegionKHR callableShaderBindingTable = {};
+
+  // =========================================================================
   // Record Render Pass Command Buffers
 
   for (uint32_t x = 0; x < swapchainImageCount; x++) {
@@ -2534,47 +2502,28 @@ int main() {
       throwExceptionVulkanAPI(result, "vkBeginCommandBuffer");
     }
 
-    std::vector<VkClearValue> clearValueList = {
-        {.color = {0.0f, 0.0f, 0.0f, 1.0f}}, {.depthStencil = {1.0f, 0}}};
-
-    VkRenderPassBeginInfo renderPassBeginInfo = {
-        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .pNext = NULL,
-        .renderPass = renderPassHandle,
-        .framebuffer = framebufferHandleList[x],
-        .renderArea = screenRect2D,
-        .clearValueCount = (uint32_t)clearValueList.size(),
-        .pClearValues = clearValueList.data()};
-
-    vkCmdBeginRenderPass(commandBufferHandleList[x], &renderPassBeginInfo,
-                         VK_SUBPASS_CONTENTS_INLINE);
-
     vkCmdBindPipeline(commandBufferHandleList[x],
-                      VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineHandle);
-
-    VkDeviceSize offset = 0;
-    vkCmdBindVertexBuffers(commandBufferHandleList[x], 0, 1,
-                           &vertexBufferHandle, &offset);
-
-    vkCmdBindIndexBuffer(commandBufferHandleList[x], indexBufferHandle, 0,
-                         VK_INDEX_TYPE_UINT32);
+                      VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+                      rayTracingPipelineHandle);
 
     vkCmdBindDescriptorSets(
-        commandBufferHandleList[x], VK_PIPELINE_BIND_POINT_GRAPHICS,
+        commandBufferHandleList[x], VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
         pipelineLayoutHandle, 0, (uint32_t)descriptorSetHandleList.size(),
         descriptorSetHandleList.data(), 0, NULL);
 
-    vkCmdDrawIndexed(commandBufferHandleList[x], indexList.size(), 1, 0, 0, 0);
-
-    vkCmdEndRenderPass(commandBufferHandleList[x]);
+    pvkCmdTraceRaysKHR(commandBufferHandleList[x], &rgenShaderBindingTable,
+                       &rmissShaderBindingTable, &rchitShaderBindingTable,
+                       &callableShaderBindingTable,
+                       surfaceCapabilities.currentExtent.width,
+                       surfaceCapabilities.currentExtent.height, 1);
 
     VkImageMemoryBarrier swapchainCopyMemoryBarrier = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
         .pNext = NULL,
         .srcAccessMask = 0,
-        .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+        .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
         .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         .srcQueueFamilyIndex = queueFamilyIndex,
         .dstQueueFamilyIndex = queueFamilyIndex,
         .image = swapchainImageHandleList[x],
@@ -2593,9 +2542,9 @@ int main() {
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
         .pNext = NULL,
         .srcAccessMask = 0,
-        .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
         .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
         .srcQueueFamilyIndex = queueFamilyIndex,
         .dstQueueFamilyIndex = queueFamilyIndex,
         .image = rayTraceImageHandle,
@@ -2625,16 +2574,17 @@ int main() {
                    .height = surfaceCapabilities.currentExtent.height,
                    .depth = 1}};
 
-    vkCmdCopyImage(commandBufferHandleList[x], swapchainImageHandleList[x],
-                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, rayTraceImageHandle,
+    vkCmdCopyImage(commandBufferHandleList[x], rayTraceImageHandle,
+                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                   swapchainImageHandleList[x],
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageCopy);
 
     VkImageMemoryBarrier swapchainPresentMemoryBarrier = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
         .pNext = NULL,
-        .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
         .dstAccessMask = 0,
-        .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         .srcQueueFamilyIndex = queueFamilyIndex,
         .dstQueueFamilyIndex = queueFamilyIndex,
@@ -2653,9 +2603,9 @@ int main() {
     VkImageMemoryBarrier rayTraceWriteMemoryBarrier = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
         .pNext = NULL,
-        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
         .dstAccessMask = 0,
-        .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
         .newLayout = VK_IMAGE_LAYOUT_GENERAL,
         .srcQueueFamilyIndex = queueFamilyIndex,
         .dstQueueFamilyIndex = queueFamilyIndex,
@@ -2904,6 +2854,10 @@ int main() {
     vkDestroyFence(deviceHandle, imageAvailableFenceHandleList[x], NULL);
   }
 
+  delete[] shaderHandleBuffer;
+  vkFreeMemory(deviceHandle, shaderBindingTableDeviceMemoryHandle, NULL);
+  vkDestroyBuffer(deviceHandle, shaderBindingTableBufferHandle, NULL);
+
   vkFreeMemory(deviceHandle, materialDeviceMemoryHandle, NULL);
   vkDestroyBuffer(deviceHandle, materialBufferHandle, NULL);
   vkFreeMemory(deviceHandle, materialIndexDeviceMemoryHandle, NULL);
@@ -2961,9 +2915,11 @@ int main() {
   vkDestroyBuffer(deviceHandle, indexBufferHandle, NULL);
   vkFreeMemory(deviceHandle, vertexDeviceMemoryHandle, NULL);
   vkDestroyBuffer(deviceHandle, vertexBufferHandle, NULL);
-  vkDestroyPipeline(deviceHandle, graphicsPipelineHandle, NULL);
-  vkDestroyShaderModule(deviceHandle, fragmentShaderModuleHandle, NULL);
-  vkDestroyShaderModule(deviceHandle, vertexShaderModuleHandle, NULL);
+  vkDestroyPipeline(deviceHandle, rayTracingPipelineHandle, NULL);
+  vkDestroyShaderModule(deviceHandle, rayMissShadowShaderModuleHandle, NULL);
+  vkDestroyShaderModule(deviceHandle, rayMissShaderModuleHandle, NULL);
+  vkDestroyShaderModule(deviceHandle, rayGenerateShaderModuleHandle, NULL);
+  vkDestroyShaderModule(deviceHandle, rayClosestHitShaderModuleHandle, NULL);
   vkDestroyPipelineLayout(deviceHandle, pipelineLayoutHandle, NULL);
   vkDestroyDescriptorSetLayout(deviceHandle, materialDescriptorSetLayoutHandle,
                                NULL);
@@ -2972,14 +2928,9 @@ int main() {
   vkDestroyDescriptorPool(deviceHandle, descriptorPoolHandle, NULL);
 
   for (uint32_t x = 0; x < swapchainImageCount; x++) {
-    vkDestroyFramebuffer(deviceHandle, framebufferHandleList[x], NULL);
-    vkDestroyImageView(deviceHandle, depthImageViewHandleList[x], NULL);
-    vkFreeMemory(deviceHandle, depthImageDeviceMemoryHandleList[x], NULL);
-    vkDestroyImage(deviceHandle, depthImageHandleList[x], NULL);
     vkDestroyImageView(deviceHandle, swapchainImageViewHandleList[x], NULL);
   }
 
-  vkDestroyRenderPass(deviceHandle, renderPassHandle, NULL);
   vkDestroySwapchainKHR(deviceHandle, swapchainHandle, NULL);
   vkDestroyCommandPool(deviceHandle, commandPoolHandle, NULL);
   vkDestroyDevice(deviceHandle, NULL);
