@@ -480,8 +480,7 @@ int main() {
       .imageColorSpace = surfaceFormatList[0].colorSpace,
       .imageExtent = surfaceCapabilities.currentExtent,
       .imageArrayLayers = 1,
-      .imageUsage =
-          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+      .imageUsage = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
       .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
       .queueFamilyIndexCount = 1,
       .pQueueFamilyIndices = &queueFamilyIndex,
@@ -589,8 +588,7 @@ int main() {
       {.binding = 2,
        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
        .descriptorCount = 1,
-       .stageFlags =
-          VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+       .stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
        .pImmutableSamplers = NULL},
       {.binding = 3,
        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -2577,7 +2575,8 @@ int main() {
                    .depth = 1}};
 
     vkCmdCopyImage(commandBufferHandleList[x], rayTraceImageHandle,
-                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapchainImageHandleList[x],
+                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                   swapchainImageHandleList[x],
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageCopy);
 
     VkImageMemoryBarrier swapchainPresentMemoryBarrier = {
@@ -2855,7 +2854,7 @@ int main() {
     vkDestroyFence(deviceHandle, imageAvailableFenceHandleList[x], NULL);
   }
 
-  delete [] shaderHandleBuffer;
+  delete[] shaderHandleBuffer;
   vkFreeMemory(deviceHandle, shaderBindingTableDeviceMemoryHandle, NULL);
   vkDestroyBuffer(deviceHandle, shaderBindingTableBufferHandle, NULL);
 
