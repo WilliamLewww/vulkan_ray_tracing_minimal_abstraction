@@ -1,5 +1,4 @@
 # Vulkan Ray Tracing Minimal Abstraction
-#### Currently undergoing a revamp (less abstraction + cleaner structure initialization) in the wlew/revamp branch.
 
 <p float="left">
   <img src="resources/render_1.png" width="400">
