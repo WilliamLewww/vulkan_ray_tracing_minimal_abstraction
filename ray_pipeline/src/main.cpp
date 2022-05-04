@@ -34,32 +34,6 @@ void keyCallback(GLFWwindow *windowPtr, int key, int scancode, int action,
   }
 }
 
-VkBool32
-debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-              VkDebugUtilsMessageTypeFlagsEXT messageTypes,
-              const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-              void *pUserData) {
-
-  std::string message = pCallbackData->pMessage;
-
-  if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
-    message = STRING_INFO + message + STRING_RESET;
-    PRINT_MESSAGE(std::cout, message.c_str());
-  }
-
-  if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-    message = STRING_WARNING + message + STRING_RESET;
-    PRINT_MESSAGE(std::cerr, message.c_str());
-  }
-
-  if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-    message = STRING_ERROR + message + STRING_RESET;
-    PRINT_MESSAGE(std::cerr, message.c_str());
-  }
-
-  return VK_FALSE;
-}
-
 void throwExceptionVulkanAPI(VkResult result, std::string functionName) {
   std::string message = "Vulkan API exception: return code " +
                         std::to_string(result) + " (" + functionName + ")";
@@ -87,42 +61,6 @@ int main() {
   // =========================================================================
   // Vulkan Instance
 
-  std::vector<VkValidationFeatureEnableEXT> validationFeatureEnableList = {
-      // VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
-      VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT,
-      VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT};
-
-  VkDebugUtilsMessageSeverityFlagBitsEXT debugUtilsMessageSeverityFlagBits =
-      (VkDebugUtilsMessageSeverityFlagBitsEXT)(
-          // VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-          VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
-          VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-          VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT);
-
-  VkDebugUtilsMessageTypeFlagBitsEXT debugUtilsMessageTypeFlagBits =
-      (VkDebugUtilsMessageTypeFlagBitsEXT)(
-          // VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-          VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-          VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT);
-
-  VkValidationFeaturesEXT validationFeatures = {
-      .sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
-      .pNext = NULL,
-      .enabledValidationFeatureCount =
-          (uint32_t)validationFeatureEnableList.size(),
-      .pEnabledValidationFeatures = validationFeatureEnableList.data(),
-      .disabledValidationFeatureCount = 0,
-      .pDisabledValidationFeatures = NULL};
-
-  VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfo = {
-      .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-      .pNext = &validationFeatures,
-      .flags = 0,
-      .messageSeverity = debugUtilsMessageSeverityFlagBits,
-      .messageType = debugUtilsMessageTypeFlagBits,
-      .pfnUserCallback = &debugCallback,
-      .pUserData = NULL};
-
   VkApplicationInfo applicationInfo = {
       .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
       .pNext = NULL,
@@ -132,7 +70,7 @@ int main() {
       .engineVersion = VK_MAKE_VERSION(1, 0, 0),
       .apiVersion = VK_API_VERSION_1_3};
 
-  std::vector<const char *> instanceLayerList = {"VK_LAYER_KHRONOS_validation"};
+  std::vector<const char *> instanceLayerList = {};
 
   uint32_t glfwExtensionCount = 0;
   const char **glfwExtensions =
@@ -147,7 +85,7 @@ int main() {
 
   VkInstanceCreateInfo instanceCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-      .pNext = &debugUtilsMessengerCreateInfo,
+      .pNext = NULL,
       .flags = 0,
       .pApplicationInfo = &applicationInfo,
       .enabledLayerCount = (uint32_t)instanceLayerList.size(),
