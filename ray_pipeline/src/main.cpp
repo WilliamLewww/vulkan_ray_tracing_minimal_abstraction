@@ -9,13 +9,6 @@
 #include <iostream>
 #include <vector>
 
-#define STRING_RESET "\033[0m"
-#define STRING_INFO "\033[37m"
-#define STRING_WARNING "\033[33m"
-#define STRING_ERROR "\033[36m"
-
-#define PRINT_MESSAGE(stream, message) stream << message << std::endl;
-
 static char keyDownIndex[500];
 
 static float cameraPosition[3];
