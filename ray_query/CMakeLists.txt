@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.19)
+cmake_minimum_required (VERSION 3.21)
 project(vulkan_ray_tracing_minimal_abstraction)
 
 find_package(Vulkan REQUIRED)
