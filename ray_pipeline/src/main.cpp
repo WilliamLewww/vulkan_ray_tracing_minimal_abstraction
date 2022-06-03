@@ -2937,5 +2937,5 @@ int main() {
   vkDestroySurfaceKHR(instanceHandle, surfaceHandle, NULL);
   vkDestroyInstance(instanceHandle, NULL);
 
-  return -1;
+  return 0;
 }
