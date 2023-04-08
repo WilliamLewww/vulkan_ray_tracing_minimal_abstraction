@@ -233,7 +233,9 @@ int main() {
       .pNext = &physicalDeviceAccelerationStructureFeatures,
       .rayQuery = VK_TRUE};
 
-  VkPhysicalDeviceFeatures deviceFeatures = {.geometryShader = VK_TRUE};
+  VkPhysicalDeviceFeatures deviceFeatures = {
+      .geometryShader = VK_TRUE,
+      .fragmentStoresAndAtomics = VK_TRUE};
 
   // =========================================================================
   // Physical Device Submission Queue Families

@@ -2363,8 +2363,10 @@ int main() {
   // =========================================================================
   // Shader Binding Table
 
-  VkDeviceSize shaderBindingTableSize =
-      physicalDeviceRayTracingPipelineProperties.shaderGroupHandleSize * 4;
+  VkDeviceSize progSize =
+      physicalDeviceRayTracingPipelineProperties.shaderGroupBaseAlignment;
+
+  VkDeviceSize shaderBindingTableSize = progSize * 4;
 
   VkBufferCreateInfo shaderBindingTableBufferCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -2440,6 +2442,7 @@ int main() {
            shaderHandleBuffer + x * physicalDeviceRayTracingPipelineProperties
                                         .shaderGroupHandleSize,
            physicalDeviceRayTracingPipelineProperties.shaderGroupHandleSize);
+
     hostShaderBindingTableMemoryBuffer =
         (char *)hostShaderBindingTableMemoryBuffer +
         physicalDeviceRayTracingPipelineProperties.shaderGroupBaseAlignment;
@@ -2460,28 +2463,24 @@ int main() {
       pvkGetBufferDeviceAddressKHR(deviceHandle,
                                    &shaderBindingTableBufferDeviceAddressInfo);
 
-  VkDeviceSize progSize =
-      physicalDeviceRayTracingPipelineProperties.shaderGroupBaseAlignment;
-
-  VkDeviceSize sbtSize = progSize * (VkDeviceSize)4;
   VkDeviceSize hitGroupOffset = 0u * progSize;
   VkDeviceSize rayGenOffset = 1u * progSize;
   VkDeviceSize missOffset = 2u * progSize;
 
   const VkStridedDeviceAddressRegionKHR rchitShaderBindingTable = {
-      .deviceAddress = shaderBindingTableBufferDeviceAddress + 0u * progSize,
+      .deviceAddress = shaderBindingTableBufferDeviceAddress + hitGroupOffset,
       .stride = progSize,
-      .size = sbtSize * 1};
+      .size = progSize};
 
   const VkStridedDeviceAddressRegionKHR rgenShaderBindingTable = {
-      .deviceAddress = shaderBindingTableBufferDeviceAddress + 1u * progSize,
-      .stride = sbtSize,
-      .size = sbtSize * 1};
+      .deviceAddress = shaderBindingTableBufferDeviceAddress + rayGenOffset,
+      .stride = progSize,
+      .size = progSize};
 
   const VkStridedDeviceAddressRegionKHR rmissShaderBindingTable = {
-      .deviceAddress = shaderBindingTableBufferDeviceAddress + 2u * progSize,
+      .deviceAddress = shaderBindingTableBufferDeviceAddress + missOffset,
       .stride = progSize,
-      .size = sbtSize * 2};
+      .size = progSize * 2};
 
   const VkStridedDeviceAddressRegionKHR callableShaderBindingTable = {};
 
