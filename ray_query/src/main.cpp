@@ -60,14 +60,10 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
   return VK_FALSE;
 }
 
-void throwExceptionVulkanAPI(VkResult result, std::string functionName) {
+void throwExceptionVulkanAPI(VkResult result, const std::string& functionName) {
   std::string message = "Vulkan API exception: return code " +
                         std::to_string(result) + " (" + functionName + ")";
 
-  throw std::runtime_error(message);
-}
-
-void throwExceptionMessage(std::string message) {
   throw std::runtime_error(message);
 }
 
@@ -620,14 +616,14 @@ int main() {
                                  &depthImageMemoryRequirements);
 
     uint32_t depthImageMemoryTypeIndex = -1;
-    for (uint32_t x = 0; x < physicalDeviceMemoryProperties.memoryTypeCount;
-         x++) {
-      if ((depthImageMemoryRequirements.memoryTypeBits & (1 << x)) &&
-          (physicalDeviceMemoryProperties.memoryTypes[x].propertyFlags &
+    for (uint32_t y = 0; y < physicalDeviceMemoryProperties.memoryTypeCount;
+         y++) {
+      if ((depthImageMemoryRequirements.memoryTypeBits & (1 << y)) &&
+          (physicalDeviceMemoryProperties.memoryTypes[y].propertyFlags &
            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) ==
               VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
 
-        depthImageMemoryTypeIndex = x;
+        depthImageMemoryTypeIndex = y;
         break;
       }
     }
@@ -853,7 +849,10 @@ int main() {
   std::streamsize vertexFileSize = vertexFile.tellg();
   vertexFile.seekg(0, std::ios::beg);
   std::vector<uint32_t> vertexShaderSource(vertexFileSize / sizeof(uint32_t));
-  vertexFile.read((char *)vertexShaderSource.data(), vertexFileSize);
+
+  vertexFile.read(reinterpret_cast<char *>(vertexShaderSource.data()),
+                  vertexFileSize);
+
   vertexFile.close();
 
   VkShaderModuleCreateInfo vertexShaderModuleCreateInfo = {
@@ -880,7 +879,10 @@ int main() {
   fragmentFile.seekg(0, std::ios::beg);
   std::vector<uint32_t> fragmentShaderSource(fragmentFileSize /
                                              sizeof(uint32_t));
-  fragmentFile.read((char *)fragmentShaderSource.data(), fragmentFileSize);
+
+  fragmentFile.read(reinterpret_cast<char *>(fragmentShaderSource.data()),
+                    fragmentFileSize);
+
   fragmentFile.close();
 
   VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo = {
@@ -2734,7 +2736,6 @@ int main() {
   // Main Loop
 
   uint32_t currentFrame = 0;
-  uint32_t currentImageIndex = 0;
 
   while (!glfwWindowShouldClose(windowPtr)) {
     glfwPollEvents();
@@ -2771,19 +2772,14 @@ int main() {
     }
 
     static double previousMousePositionX;
-    static double previousMousePositionY;
 
     double xPos, yPos;
     glfwGetCursorPos(windowPtr, &xPos, &yPos);
 
-    if (previousMousePositionX != xPos || previousMousePositionY != yPos) {
+    if (previousMousePositionX != xPos) {
       double mouseDifferenceX = previousMousePositionX - xPos;
-      double mouseDifferenceY = previousMousePositionY - yPos;
-
       cameraYaw += mouseDifferenceX * 0.0005f;
-
       previousMousePositionX = xPos;
-      previousMousePositionY = yPos;
 
       isCameraMoved = 1;
     }
@@ -2900,7 +2896,7 @@ int main() {
     throwExceptionVulkanAPI(result, "vkDeviceWaitIdle");
   }
 
-  for (uint32_t x; x < swapchainImageCount; x++) {
+  for (uint32_t x = 0; x < swapchainImageCount; x++) {
     vkDestroySemaphore(deviceHandle, writeImageSemaphoreHandleList[x], NULL);
     vkDestroySemaphore(deviceHandle, acquireImageSemaphoreHandleList[x], NULL);
     vkDestroyFence(deviceHandle, imageAvailableFenceHandleList[x], NULL);
