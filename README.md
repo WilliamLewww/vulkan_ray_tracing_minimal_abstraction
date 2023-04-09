@@ -9,6 +9,8 @@
 
 **ray_query** uses the graphics pipeline along with ray querying to generate the final image.
 
+**headless** generates a ray traced image without creating a window or needing a surface.
+
 ## Important Note
 
 Make sure the **VK_KHR_ray_query** and  **VK_KHR_ray_tracing_pipeline** extensions are available on your device!
@@ -25,6 +27,7 @@ Navigate to a subproject:
 ```bash
 cd vulkan_ray_tracing_minimal_abstraction/ray_pipeline
 # or cd vulkan_ray_tracing_minimal_abstraction/ray_query
+# or cd vulkan_ray_tracing_minimal_abstraction/headless
 ```
 
 Create a build directory and navigate to the new directory.
@@ -37,3 +40,6 @@ Run cmake with the root of the repository as the argument. You can now use the m
 cmake ..
 make
 ```
+
+#### Image generated from headless example:
+![headless](resources/headless.png)
