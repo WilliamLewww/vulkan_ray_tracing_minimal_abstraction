@@ -4,6 +4,10 @@ project(vulkan_ray_tracing_minimal_abstraction)
 find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
 
+if(DEFINED VALIDATION_ENABLED)
+  add_compile_definitions(VALIDATION_ENABLED=1)
+endif()
+
 file(GLOB SHADERS 
   "src/shader.rchit" 
   "src/shader.rgen" 
@@ -16,7 +20,6 @@ include_directories(application ${Vulkan_INCLUDE_DIRS})
 include_directories(application ${GLFW_INCLUDE_DIRS})
 target_link_libraries(application ${Vulkan_LIBRARIES})
 target_link_libraries(application glfw)
-target_link_libraries(application m)
 
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/shaders)
 foreach(SHADER ${SHADERS})
