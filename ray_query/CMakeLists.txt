@@ -2,7 +2,6 @@ cmake_minimum_required (VERSION 3.21)
 project(vulkan_ray_tracing_minimal_abstraction)
 
 find_package(Vulkan REQUIRED)
-find_package(glfw3 REQUIRED)
 
 if(DEFINED VALIDATION_ENABLED)
   add_compile_definitions(VALIDATION_ENABLED=1)
@@ -10,12 +9,21 @@ endif()
 
 file(GLOB SHADERS "src/shader.vert" "src/shader.frag")
 
-add_executable(application src/main.cpp)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+  add_executable(application src/main.cpp)
+  add_compile_definitions(PLATFORM_LINUX=1)
+
+  find_package(X11)
+  target_link_libraries(triangle X11)
+elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+  add_executable(application WIN32 src/main.cpp)
+  add_compile_definitions(PLATFORM_WINDOWS=1)
+endif()
+
+set_property(TARGET application PROPERTY CXX_STANDARD 20)
 include_directories(application include)
 include_directories(application ${Vulkan_INCLUDE_DIRS})
-include_directories(application ${GLFW_INCLUDE_DIRS})
 target_link_libraries(application ${Vulkan_LIBRARIES})
-target_link_libraries(application glfw)
 
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/shaders)
 foreach(SHADER ${SHADERS})
