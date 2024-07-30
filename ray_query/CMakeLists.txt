@@ -14,7 +14,7 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
   add_compile_definitions(PLATFORM_LINUX=1)
 
   find_package(X11)
-  target_link_libraries(triangle X11)
+  target_link_libraries(application X11)
 elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
   add_executable(application WIN32 src/main.cpp)
   add_compile_definitions(PLATFORM_WINDOWS=1)

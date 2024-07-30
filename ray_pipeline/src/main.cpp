@@ -9,6 +9,7 @@
 
 #if defined(PLATFORM_LINUX)
 #include <X11/Xlib.h>
+#include <X11/keysym.h>
 #include <vulkan/vulkan_xlib.h>
 #elif defined(PLATFORM_WINDOWS)
 #include <windows.h>
@@ -114,8 +115,57 @@ _Use_decl_annotations_ int APIENTRY WinMain(HINSTANCE hInstance,
                                             LPSTR pCmdLine,
                                             int nCmdShow) {
 #else
-void handleEvent(XEvent * eventPtr) {
+void handleEvent(Display *displayPtr, XEvent *eventPtr) {
+  if (eventPtr->type == KeyPress) {
+    int keySymCount = 0;
+    KeySym *keySym = XGetKeyboardMapping(displayPtr, eventPtr->xkey.keycode, 1,
+                                         &keySymCount);
+    switch (*keySym) {
+    case XK_Up:
+      isMoveForward = true;
+      break;
+    case XK_Down:
+      isMoveBack = true;
+      break;
+    case XK_Left:
+      isTurnLeft = true;
+      break;
+    case XK_Right:
+      isTurnRight = true;
+      break;
+    case XK_Escape:
+      exitWindow = true;
+      break;
+    default:
+      break;
+    }
 
+    free(keySym);
+  }
+  else if (eventPtr->type == KeyRelease) {
+    int keySymCount = 0;
+    KeySym *keySym = XGetKeyboardMapping(displayPtr, eventPtr->xkey.keycode, 1,
+                                         &keySymCount);
+
+    switch (*keySym) {
+    case XK_Up:
+      isMoveForward = false;
+      break;
+    case XK_Down:
+      isMoveBack = false;
+      break;
+    case XK_Left:
+      isTurnLeft = false;
+      break;
+    case XK_Right:
+      isTurnRight = false;
+      break;
+    default:
+      break;
+    }
+
+    free(keySym);
+  }
 }
 
 int main() {
@@ -133,7 +183,8 @@ int main() {
       displayPtr, RootWindow(displayPtr, screen), 10, 10, 100, 100, 1,
       BlackPixel(displayPtr, screen), WhitePixel(displayPtr, screen));
 
-  XSelectInput(displayPtr, windowLinux, ExposureMask | KeyPressMask);
+  XSelectInput(displayPtr, windowLinux, ExposureMask | KeyPressMask |
+                                        KeyReleaseMask);
   XMapWindow(displayPtr, windowLinux);
 #elif defined(PLATFORM_WINDOWS)
   WNDCLASS wc = {
@@ -2814,7 +2865,7 @@ int main() {
 #if defined(PLATFORM_LINUX)
     XEvent event;
     XNextEvent(displayPtr, &event);
-    handleEvent(&event);
+    handleEvent(displayPtr, &event);
 #elif defined(PLATFORM_WINDOWS)
     MSG msg;
     PeekMessage(&msg, NULL, 0, 0, PM_REMOVE);
