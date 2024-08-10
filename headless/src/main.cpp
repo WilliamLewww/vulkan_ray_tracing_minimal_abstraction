@@ -10,12 +10,11 @@
 #include <iostream>
 #include <vector>
 
+#if defined(VALIDATION_ENABLED)
 #define STRING_RESET "\033[0m"
 #define STRING_INFO "\033[37m"
 #define STRING_WARNING "\033[33m"
 #define STRING_ERROR "\033[36m"
-
-#define PRINT_MESSAGE(stream, message) stream << message << std::endl;
 
 VkBool32
 debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -27,25 +26,28 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 
   if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
     message = STRING_INFO + message + STRING_RESET;
-    PRINT_MESSAGE(std::cout, message.c_str());
+    std::cout << message.c_str() << std::endl;
   }
 
   if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
     message = STRING_WARNING + message + STRING_RESET;
-    PRINT_MESSAGE(std::cerr, message.c_str());
+    std::cerr << message.c_str() << std::endl;
   }
 
   if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
     message = STRING_ERROR + message + STRING_RESET;
-    PRINT_MESSAGE(std::cerr, message.c_str());
+    std::cerr << message.c_str() << std::endl;
   }
 
   return VK_FALSE;
 }
+#endif
 
 void throwExceptionVulkanAPI(VkResult result, const std::string &functionName) {
   std::string message = "Vulkan API exception: return code " +
                         std::to_string(result) + " (" + functionName + ")";
+
+  std::cerr << message.c_str() << std::endl;
 
   throw std::runtime_error(message);
 }
@@ -56,6 +58,9 @@ int main() {
   // =========================================================================
   // Vulkan Instance
 
+  VkDebugUtilsMessengerCreateInfoEXT *debugUtilsMessengerCreateInfoPtr = NULL;
+
+#if defined(VALIDATION_ENABLED)
   std::vector<VkValidationFeatureEnableEXT> validationFeatureEnableList = {
       // VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
       VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT,
@@ -87,10 +92,15 @@ int main() {
       .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
       .pNext = &validationFeatures,
       .flags = 0,
-      .messageSeverity = debugUtilsMessageSeverityFlagBits,
-      .messageType = debugUtilsMessageTypeFlagBits,
+      .messageSeverity =
+          (VkDebugUtilsMessageSeverityFlagsEXT)debugUtilsMessageSeverityFlagBits,
+      .messageType =
+          (VkDebugUtilsMessageTypeFlagsEXT)debugUtilsMessageTypeFlagBits,
       .pfnUserCallback = &debugCallback,
       .pUserData = NULL};
+
+  debugUtilsMessengerCreateInfoPtr = &debugUtilsMessengerCreateInfo;
+#endif
 
   VkApplicationInfo applicationInfo = {
       .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -101,15 +111,17 @@ int main() {
       .engineVersion = VK_MAKE_VERSION(1, 0, 0),
       .apiVersion = VK_API_VERSION_1_3};
 
-  std::vector<const char *> instanceLayerList = {"VK_LAYER_KHRONOS_validation"};
+  std::vector<const char *> instanceLayerList = {};
+  std::vector<const char *> instanceExtensionList = {"VK_KHR_get_physical_device_properties2"};
 
-  std::vector<const char *> instanceExtensionList = {
-      VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-      "VK_KHR_get_physical_device_properties2"};
+#if defined(VALIDATION_ENABLED)
+  instanceLayerList.push_back("VK_LAYER_KHRONOS_validation");
+  instanceExtensionList.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+#endif
 
   VkInstanceCreateInfo instanceCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-      .pNext = &debugUtilsMessengerCreateInfo,
+      .pNext = debugUtilsMessengerCreateInfoPtr,
       .flags = 0,
       .pApplicationInfo = &applicationInfo,
       .enabledLayerCount = (uint32_t)instanceLayerList.size(),

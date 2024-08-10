@@ -1,38 +1,26 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
 
 #include <fstream>
 #include <iostream>
 #include <vector>
 
+#if defined(PLATFORM_LINUX)
+#include <X11/Xlib.h>
+#include <X11/keysym.h>
+#include <vulkan/vulkan_xlib.h>
+#elif defined(PLATFORM_WINDOWS)
+#include <windows.h>
+#include <vulkan/vulkan_win32.h>
+#endif
+
+#if defined(VALIDATION_ENABLED)
 #define STRING_RESET "\033[0m"
 #define STRING_INFO "\033[37m"
 #define STRING_WARNING "\033[33m"
 #define STRING_ERROR "\033[36m"
-
-#define PRINT_MESSAGE(stream, message) stream << message << std::endl;
-
-static char keyDownIndex[500];
-
-static float cameraPosition[3];
-static float cameraYaw;
-static float cameraPitch;
-
-void keyCallback(GLFWwindow *windowPtr, int key, int scancode, int action,
-                 int mods) {
-
-  if (action == GLFW_PRESS) {
-    keyDownIndex[key] = 1;
-  }
-
-  if (action == GLFW_RELEASE) {
-    keyDownIndex[key] = 0;
-  }
-}
 
 VkBool32
 debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -44,45 +32,196 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 
   if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
     message = STRING_INFO + message + STRING_RESET;
-    PRINT_MESSAGE(std::cout, message.c_str());
+    std::cout << message.c_str() << std::endl;
   }
 
   if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
     message = STRING_WARNING + message + STRING_RESET;
-    PRINT_MESSAGE(std::cerr, message.c_str());
+    std::cerr << message.c_str() << std::endl;
   }
 
   if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
     message = STRING_ERROR + message + STRING_RESET;
-    PRINT_MESSAGE(std::cerr, message.c_str());
+    std::cerr << message.c_str() << std::endl;
   }
 
   return VK_FALSE;
 }
+#endif
 
 void throwExceptionVulkanAPI(VkResult result, const std::string &functionName) {
   std::string message = "Vulkan API exception: return code " +
                         std::to_string(result) + " (" + functionName + ")";
 
+  std::cerr << message.c_str() << std::endl;
+
   throw std::runtime_error(message);
 }
 
+bool exitWindow = false;
+static bool isMoveForward = false, isMoveBack = false;
+static bool isTurnLeft = false, isTurnRight = false;
+
+#if defined(PLATFORM_WINDOWS)
+LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+  if (uMsg == WM_KEYDOWN) {
+    switch (wParam) {
+    case VK_UP:
+      isMoveForward = true;
+      break;
+    case VK_DOWN:
+      isMoveBack = true;
+      break;
+    case VK_LEFT:
+      isTurnLeft = true;
+      break;
+    case VK_RIGHT:
+      isTurnRight = true;
+      break;
+    case VK_ESCAPE:
+      exitWindow = true;
+      break;
+    default:
+      break;
+    }
+  }
+  else if (uMsg == WM_KEYUP) {
+    switch (wParam) {
+    case VK_UP:
+      isMoveForward = false;
+      break;
+    case VK_DOWN:
+      isMoveBack = false;
+      break;
+    case VK_LEFT:
+      isTurnLeft = false;
+      break;
+    case VK_RIGHT:
+      isTurnRight = false;
+      break;
+    default:
+      break;
+    }
+  } else if (uMsg == WM_CLOSE) {
+    exitWindow = true;
+  }
+
+  return (DefWindowProc(hWnd, uMsg, wParam, lParam));
+}
+
+_Use_decl_annotations_ int APIENTRY WinMain(HINSTANCE hInstance,
+                                            HINSTANCE hPrevInstance,
+                                            LPSTR pCmdLine,
+                                            int nCmdShow) {
+#else
+void handleEvent(Display *displayPtr, XEvent *eventPtr) {
+  if (eventPtr->type == KeyPress) {
+    int keySymCount = 0;
+    KeySym *keySym = XGetKeyboardMapping(displayPtr, eventPtr->xkey.keycode, 1,
+                                         &keySymCount);
+    switch (*keySym) {
+    case XK_Up:
+      isMoveForward = true;
+      break;
+    case XK_Down:
+      isMoveBack = true;
+      break;
+    case XK_Left:
+      isTurnLeft = true;
+      break;
+    case XK_Right:
+      isTurnRight = true;
+      break;
+    case XK_Escape:
+      exitWindow = true;
+      break;
+    default:
+      break;
+    }
+
+    free(keySym);
+  }
+  else if (eventPtr->type == KeyRelease) {
+    int keySymCount = 0;
+    KeySym *keySym = XGetKeyboardMapping(displayPtr, eventPtr->xkey.keycode, 1,
+                                         &keySymCount);
+
+    switch (*keySym) {
+    case XK_Up:
+      isMoveForward = false;
+      break;
+    case XK_Down:
+      isMoveBack = false;
+      break;
+    case XK_Left:
+      isTurnLeft = false;
+      break;
+    case XK_Right:
+      isTurnRight = false;
+      break;
+    default:
+      break;
+    }
+
+    free(keySym);
+  }
+}
+
 int main() {
+#endif
   VkResult result;
 
   // =========================================================================
-  // GLFW, Window
+  // Window
 
-  glfwInit();
-  glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-  glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-  GLFWwindow *windowPtr = glfwCreateWindow(800, 600, "Vulkan", NULL, NULL);
-  glfwSetInputMode(windowPtr, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-  glfwSetKeyCallback(windowPtr, keyCallback);
+#if defined(PLATFORM_LINUX)
+  Display *displayPtr = XOpenDisplay(NULL);
+  int screen = DefaultScreen(displayPtr);
+
+  Window windowLinux = XCreateSimpleWindow(
+      displayPtr, RootWindow(displayPtr, screen), 10, 10, 100, 100, 1,
+      BlackPixel(displayPtr, screen), WhitePixel(displayPtr, screen));
+
+  XSelectInput(displayPtr, windowLinux, ExposureMask | KeyPressMask |
+                                        KeyReleaseMask);
+  XMapWindow(displayPtr, windowLinux);
+#elif defined(PLATFORM_WINDOWS)
+  WNDCLASS wc = {
+    .lpfnWndProc = WindowProc,
+    .hInstance = hInstance,
+    .lpszClassName = "WINDOW_CLASS"};
+
+  if (!RegisterClass(&wc)) {
+    throwExceptionVulkanAPI((VkResult)0, "RegisterClass");
+  }
+
+  HWND windowWindows = CreateWindowEx(
+      0,
+      "WINDOW_CLASS",
+      "Triangle",
+      WS_OVERLAPPEDWINDOW | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+      0, 0, 800, 600,
+      NULL,
+      NULL,
+      hInstance,
+      NULL);
+
+  if (!windowWindows) {
+    throwExceptionVulkanAPI((VkResult)0, "CreateWindowEx");
+  }
+
+  ShowWindow(windowWindows, SW_SHOW);
+  SetForegroundWindow(windowWindows);
+  SetFocus(windowWindows);
+#endif
 
   // =========================================================================
   // Vulkan Instance
 
+  VkDebugUtilsMessengerCreateInfoEXT *debugUtilsMessengerCreateInfoPtr = NULL;
+
+#if defined(VALIDATION_ENABLED)
   std::vector<VkValidationFeatureEnableEXT> validationFeatureEnableList = {
       // VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
       VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT,
@@ -114,10 +253,15 @@ int main() {
       .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
       .pNext = &validationFeatures,
       .flags = 0,
-      .messageSeverity = debugUtilsMessageSeverityFlagBits,
-      .messageType = debugUtilsMessageTypeFlagBits,
+      .messageSeverity =
+          (VkDebugUtilsMessageSeverityFlagsEXT)debugUtilsMessageSeverityFlagBits,
+      .messageType =
+          (VkDebugUtilsMessageTypeFlagsEXT)debugUtilsMessageTypeFlagBits,
       .pfnUserCallback = &debugCallback,
       .pUserData = NULL};
+
+  debugUtilsMessengerCreateInfoPtr = &debugUtilsMessengerCreateInfo;
+#endif
 
   VkApplicationInfo applicationInfo = {
       .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -128,22 +272,25 @@ int main() {
       .engineVersion = VK_MAKE_VERSION(1, 0, 0),
       .apiVersion = VK_API_VERSION_1_3};
 
-  std::vector<const char *> instanceLayerList = {"VK_LAYER_KHRONOS_validation"};
+  std::vector<const char *> instanceLayerList = {};
+  std::vector<const char *> instanceExtensionList = {
+#if defined(PLATFORM_LINUX)
+      "VK_KHR_xlib_surface",
+#elif defined(PLATFORM_ANDROID)
+      "VK_KHR_android_surface",
+#elif defined(PLATFORM_WINDOWS)
+      "VK_KHR_win32_surface",
+#endif
+      "VK_KHR_surface"};
 
-  uint32_t glfwExtensionCount = 0;
-  const char **glfwExtensions =
-      glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-  std::vector<const char *> instanceExtensionList(
-      glfwExtensions, glfwExtensions + glfwExtensionCount);
-
+#if defined(VALIDATION_ENABLED)
+  instanceLayerList.push_back("VK_LAYER_KHRONOS_validation");
   instanceExtensionList.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-  instanceExtensionList.push_back("VK_KHR_get_physical_device_properties2");
-  instanceExtensionList.push_back("VK_KHR_surface");
+#endif
 
   VkInstanceCreateInfo instanceCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-      .pNext = &debugUtilsMessengerCreateInfo,
+      .pNext = debugUtilsMessengerCreateInfoPtr,
       .flags = 0,
       .pApplicationInfo = &applicationInfo,
       .enabledLayerCount = (uint32_t)instanceLayerList.size(),
@@ -163,12 +310,38 @@ int main() {
   // Window Surface
 
   VkSurfaceKHR surfaceHandle = VK_NULL_HANDLE;
-  result =
-      glfwCreateWindowSurface(instanceHandle, windowPtr, NULL, &surfaceHandle);
+
+#if defined(PLATFORM_LINUX)
+  VkXlibSurfaceCreateInfoKHR xlibSurfaceCreateInfo = {
+    .sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
+    .pNext = NULL,
+    .flags = 0,
+    .dpy = displayPtr,
+    .window = windowLinux
+  };
+
+  result = vkCreateXlibSurfaceKHR(instanceHandle, &xlibSurfaceCreateInfo, NULL,
+                                  &surfaceHandle);
 
   if (result != VK_SUCCESS) {
-    throwExceptionVulkanAPI(result, "glfwCreateWindowSurface");
+    throwExceptionVulkanAPI(result, "vkCreateXlibSurfaceKHR");
   }
+#elif defined(PLATFORM_WINDOWS)
+  VkWin32SurfaceCreateInfoKHR windowsSurfaceCreateInfo {
+      .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+      .pNext = NULL,
+      .flags = 0,
+      .hinstance = hInstance,
+      .hwnd = windowWindows
+  };
+
+  result = vkCreateWin32SurfaceKHR(instanceHandle, &windowsSurfaceCreateInfo,
+                                   NULL, &surfaceHandle);
+
+  if (result != VK_SUCCESS) {
+    throwExceptionVulkanAPI(result, "vkCreateWin32SurfaceKHR");
+  }
+#endif
 
   // =========================================================================
   // Physical Device
@@ -2688,52 +2861,44 @@ int main() {
   // Main Loop
 
   uint32_t currentFrame = 0;
+  while (!exitWindow) {
+#if defined(PLATFORM_LINUX)
+    XEvent event;
+    XNextEvent(displayPtr, &event);
+    handleEvent(displayPtr, &event);
+#elif defined(PLATFORM_WINDOWS)
+    MSG msg;
+    PeekMessage(&msg, NULL, 0, 0, PM_REMOVE);
+    TranslateMessage(&msg);
+    DispatchMessage(&msg);
 
-  while (!glfwWindowShouldClose(windowPtr)) {
-    glfwPollEvents();
+    if (exitWindow) {
+      break;
+    }
+#endif
 
-    bool isCameraMoved = false;
+    static bool isCameraMoved = true;
+    static float cameraPosition[3] = { 1.5, 4.0, 10.0 };
+    static float cameraYaw = 0.0;
+    static float cameraPitch = 0.0;
 
-    if (keyDownIndex[GLFW_KEY_W]) {
-      cameraPosition[0] += cos(-cameraYaw - (M_PI / 2)) * 0.01f;
-      cameraPosition[2] += sin(-cameraYaw - (M_PI / 2)) * 0.01f;
+    if (isMoveForward) {
+      cameraPosition[0] += cos(-cameraYaw - (3.141592 / 2)) * 0.01f;
+      cameraPosition[2] += sin(-cameraYaw - (3.141592 / 2)) * 0.01f;
       isCameraMoved = true;
     }
-    if (keyDownIndex[GLFW_KEY_S]) {
-      cameraPosition[0] -= cos(-cameraYaw - (M_PI / 2)) * 0.01f;
-      cameraPosition[2] -= sin(-cameraYaw - (M_PI / 2)) * 0.01f;
+    if (isMoveBack) {
+      cameraPosition[0] -= cos(-cameraYaw - (3.141592 / 2)) * 0.01f;
+      cameraPosition[2] -= sin(-cameraYaw - (3.141592 / 2)) * 0.01f;
       isCameraMoved = true;
     }
-    if (keyDownIndex[GLFW_KEY_A]) {
-      cameraPosition[0] -= cos(-cameraYaw) * 0.01f;
-      cameraPosition[2] -= sin(-cameraYaw) * 0.01f;
+    if (isTurnLeft) {
+      cameraYaw += 0.005f;
       isCameraMoved = true;
     }
-    if (keyDownIndex[GLFW_KEY_D]) {
-      cameraPosition[0] += cos(-cameraYaw) * 0.01f;
-      cameraPosition[2] += sin(-cameraYaw) * 0.01f;
+    if (isTurnRight) {
+      cameraYaw -= 0.005f;
       isCameraMoved = true;
-    }
-    if (keyDownIndex[GLFW_KEY_SPACE]) {
-      cameraPosition[1] += 0.01f;
-      isCameraMoved = true;
-    }
-    if (keyDownIndex[GLFW_KEY_LEFT_CONTROL]) {
-      cameraPosition[1] -= 0.01f;
-      isCameraMoved = true;
-    }
-
-    static double previousMousePositionX;
-
-    double xPos, yPos;
-    glfwGetCursorPos(windowPtr, &xPos, &yPos);
-
-    if (previousMousePositionX != xPos) {
-      double mouseDifferenceX = previousMousePositionX - xPos;
-      cameraYaw += mouseDifferenceX * 0.0005f;
-      previousMousePositionX = xPos;
-
-      isCameraMoved = 1;
     }
 
     if (isCameraMoved) {
@@ -2742,10 +2907,10 @@ int main() {
       uniformStructure.cameraPosition[2] = cameraPosition[2];
 
       uniformStructure.cameraForward[0] =
-          cosf(cameraPitch) * cosf(-cameraYaw - (M_PI / 2.0));
+          cosf(cameraPitch) * cosf(-cameraYaw - (3.141592 / 2.0));
       uniformStructure.cameraForward[1] = sinf(cameraPitch);
       uniformStructure.cameraForward[2] =
-          cosf(cameraPitch) * sinf(-cameraYaw - (M_PI / 2.0));
+          cosf(cameraPitch) * sinf(-cameraYaw - (3.141592 / 2.0));
 
       uniformStructure.cameraRight[0] =
           uniformStructure.cameraForward[1] * uniformStructure.cameraUp[2] -
@@ -2758,6 +2923,8 @@ int main() {
           uniformStructure.cameraForward[1] * uniformStructure.cameraUp[0];
 
       uniformStructure.frameCount = 0;
+
+      isCameraMoved = false;
     } else {
       uniformStructure.frameCount += 1;
     }
@@ -2809,9 +2976,9 @@ int main() {
         .pWaitSemaphores = &acquireImageSemaphoreHandleList[currentFrame],
         .pWaitDstStageMask = &pipelineStageFlags,
         .commandBufferCount = 1,
-        .pCommandBuffers = &commandBufferHandleList[currentImageIndex],
+        .pCommandBuffers = &commandBufferHandleList[currentFrame],
         .signalSemaphoreCount = 1,
-        .pSignalSemaphores = &writeImageSemaphoreHandleList[currentImageIndex]};
+        .pSignalSemaphores = &writeImageSemaphoreHandleList[currentFrame]};
 
     result = vkQueueSubmit(queueHandle, 1, &submitInfo,
                            imageAvailableFenceHandleList[currentFrame]);
@@ -2824,7 +2991,7 @@ int main() {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .pNext = NULL,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &writeImageSemaphoreHandleList[currentImageIndex],
+        .pWaitSemaphores = &writeImageSemaphoreHandleList[currentFrame],
         .swapchainCount = 1,
         .pSwapchains = &swapchainHandle,
         .pImageIndices = &currentImageIndex,

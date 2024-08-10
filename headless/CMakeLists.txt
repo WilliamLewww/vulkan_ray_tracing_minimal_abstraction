@@ -3,6 +3,10 @@ project(vulkan_ray_tracing_minimal_abstraction)
 
 find_package(Vulkan REQUIRED)
 
+if(DEFINED VALIDATION_ENABLED)
+  add_compile_definitions(VALIDATION_ENABLED=1)
+endif()
+
 file(GLOB SHADERS 
   "src/shader.rchit" 
   "src/shader.rgen" 
@@ -10,10 +14,10 @@ file(GLOB SHADERS
   "src/shader_shadow.rmiss")
 
 add_executable(application src/main.cpp)
+set_property(TARGET application PROPERTY CXX_STANDARD 20)
 include_directories(application include)
 include_directories(application ${Vulkan_INCLUDE_DIRS})
 target_link_libraries(application ${Vulkan_LIBRARIES})
-target_link_libraries(application m)
 
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/shaders)
 foreach(SHADER ${SHADERS})
