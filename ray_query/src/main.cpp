@@ -1528,7 +1528,7 @@ int main() {
 
   VkMemoryAllocateInfo bottomLevelAccelerationStructureMemoryAllocateInfo = {
       .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-      .pNext = NULL,
+      .pNext = &memoryAllocateFlagsInfo,
       .allocationSize = bottomLevelAccelerationStructureMemoryRequirements.size,
       .memoryTypeIndex = bottomLevelAccelerationStructureMemoryTypeIndex};
 
