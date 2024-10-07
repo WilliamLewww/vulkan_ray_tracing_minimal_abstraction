@@ -1491,7 +1491,8 @@ int main() {
       .flags = 0,
       .size = bottomLevelAccelerationStructureBuildSizesInfo
                   .accelerationStructureSize,
-      .usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR,
+      .usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
+               VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR,
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
       .queueFamilyIndexCount = 1,
       .pQueueFamilyIndices = &queueFamilyIndex};
@@ -1527,7 +1528,7 @@ int main() {
 
   VkMemoryAllocateInfo bottomLevelAccelerationStructureMemoryAllocateInfo = {
       .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-      .pNext = NULL,
+      .pNext = &memoryAllocateFlagsInfo,
       .allocationSize = bottomLevelAccelerationStructureMemoryRequirements.size,
       .memoryTypeIndex = bottomLevelAccelerationStructureMemoryTypeIndex};
 
@@ -1907,7 +1908,8 @@ int main() {
       .flags = 0,
       .size =
           topLevelAccelerationStructureBuildSizesInfo.accelerationStructureSize,
-      .usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR,
+      .usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
+               VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR,
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
       .queueFamilyIndexCount = 1,
       .pQueueFamilyIndices = &queueFamilyIndex};
